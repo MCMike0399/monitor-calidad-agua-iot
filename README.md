@@ -457,11 +457,6 @@ Este proyecto está bajo la licencia MIT. Ver `LICENSE` para más detalles.
 
 ## 👨‍💻 Autor
 
-**Tu Nombre**
 - GitHub: [@MCMike0399](https://github.com/MCMike0399)
 - LinkedIn: [Miguel Quintero](https://www.linkedin.com/in/miguel-quintero-034a7121a/)
 - Email: maquinterov0399@icloud.com
-
----
-
-*Sistema de Monitoreo IoT de Calidad de Agua - Demostrando conceptos avanzados de sistemas distribuidos, comunicación en tiempo real y arquitectura moderna de software
