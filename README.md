@@ -417,37 +417,6 @@ const int server_port = 8000;
 
 ---
 
-## 🤝 Contribución y Desarrollo
-
-### **Flujo de Desarrollo**
-
-1. **Fork** del repositorio
-2. **Feature branch**: `git checkout -b feature/nueva-funcionalidad`
-3. **Desarrollo** con tests
-4. **Pull Request** con descripción detallada
-
-### **Estándares de Código**
-
-- **PEP 8**: Estilo de código Python
-- **Type Hints**: Documentación de tipos
-- **Docstrings**: Documentación de funciones
-- **Error Handling**: Manejo robusto de excepciones
-
-### **Testing**
-
-```bash
-# Unit tests
-python -m pytest tests/
-
-# Integration tests
-python -m pytest tests/integration/
-
-# Coverage report
-python -m pytest --cov=./ --cov-report=html
-```
-
----
-
 ## 📚 Recursos Adicionales
 
 ### **Documentación Técnica**
