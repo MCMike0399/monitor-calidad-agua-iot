@@ -335,33 +335,6 @@ THRESHOLDS = {
 }
 ```
 
-## 🚀 Despliegue en Producción
-
-### AWS EC2 + Docker
-
-```bash
-# En la instancia EC2
-sudo yum update -y
-sudo yum install docker -y
-sudo service docker start
-
-# Clonar y ejecutar
-git clone <repo>
-cd proyecto-monitor-agua
-sudo docker build -t water-monitor .
-sudo docker run -d -p 80:8000 water-monitor
-```
-
-### Variables de Entorno para Producción
-
-```env
-HOST=0.0.0.0
-PORT=8000
-DEBUG=False
-ENVIRONMENT=production
-LOG_LEVEL=WARNING
-```
-
 ## 📚 Referencias y Recursos Adicionales
 
 ### Documentación Técnica:
@@ -380,43 +353,6 @@ LOG_LEVEL=WARNING
 - `websockets`: Implementación WebSocket para Python
 - `plotly.js`: Visualización interactiva de datos
 - `psutil`: Métricas de sistema multiplataforma
-
-## 🤝 Contribución y Mejoras
-
-### Ideas para Extensiones:
-
-1. **Base de Datos:**
-   - Agregar PostgreSQL/MongoDB para persistencia
-   - Histórico de datos a largo plazo
-   - Análisis de tendencias
-
-2. **Machine Learning:**
-   - Predicción de calidad de agua
-   - Detección de anomalías
-   - Modelos de forecasting
-
-3. **Escalabilidad:**
-   - Múltiples dispositivos Arduino
-   - Load balancing
-   - Microservicios
-
-4. **Seguridad:**
-   - Autenticación JWT
-   - HTTPS/WSS
-   - Rate limiting
-
-5. **Mobile App:**
-   - React Native / Flutter
-   - Notificaciones push
-   - Modo offline
-
-## 📞 Soporte y Contacto
-
-Para dudas, sugerencias o reportar problemas:
-
-- 📧 Email: [tu-email@universidad.edu]
-- 📚 Wiki del Proyecto: [link-a-wiki]
-- 🐛 Issues: [link-a-github-issues]
 
 ---
 
