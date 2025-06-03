@@ -430,22 +430,6 @@ const int server_port = 8000;
 - [Sistema Distribuidos Concepts](https://martinfowler.com/articles/microservices.html)
 - [WebSocket vs HTTP](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
----
-
-## 🎯 Próximos Pasos y Mejoras
-
-### **Funcionalidades Planeadas**
-- [ ] **Base de Datos**: Almacenamiento histórico con TimescaleDB
-- [ ] **Alertas**: Notificaciones email/SMS via AWS SNS  
-- [ ] **Multi-sensor**: Soporte para múltiples ubicaciones
-- [ ] **Machine Learning**: Predicción de calidad del agua
-- [ ] **Mobile App**: Aplicación nativa con React Native
-
-### **Mejoras de Infrastructure**
-- [ ] **Auto-scaling**: Escalado automático basado en métricas
-- [ ] **Blue/Green Deployment**: Deployments sin downtime
-- [ ] **Monitoring**: Grafana + Prometheus para métricas avanzadas
-- [ ] **Security**: WAF + Shield para protección DDoS
 
 ---
 
