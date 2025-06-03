@@ -586,7 +586,7 @@
                <div style="line-height: 1.4;">${info.content}</div>
             `;
             
-            addEventToLog("EDUCATIVO", `Información mostrada sobre: ${info.title}`, "info");
+            // addEventToLog("EDUCATIVO", `Información mostrada sobre: ${info.title}`, "info");
          }
 
          function connectWebSocket() {
@@ -600,7 +600,7 @@
                document.getElementById("connectionStatus").className = "status-indicator online";
                document.getElementById("connectionText").textContent = "Conectado al monitor";
                addEventToLog("WEBSOCKET", "✅ Conexión WebSocket establecida. Protocolo: ws:// (desarrollo) / wss:// (producción)", "connection");
-               addEventToLog("EDUCATIVO", "💡 WebSocket permite comunicación bidireccional en tiempo real, ideal para monitoreo", "info");
+               // addEventToLog("EDUCATIVO", "💡 WebSocket permite comunicación bidireccional en tiempo real, ideal para monitoreo", "info");
                updateTopologyConnections();
             };
 
@@ -693,7 +693,7 @@
             if (event.event_type === "connection") {
                if (event.source.includes("websocket_monitor_websocket")) {
                   connectionStates.monitorClients++;
-                  addEventToLog("EDUCATIVO", "💡 WebSocket usado para clientes web porque permite push automático de datos", "info");
+                  // addEventToLog("EDUCATIVO", "💡 WebSocket usado para clientes web porque permite push automático de datos", "info");
                } else if (event.source.includes("admin")) {
                   connectionStates.adminClients++;
                }
@@ -917,7 +917,7 @@
 
          window.onload = function () {
             addEventToLog("SISTEMA", "🚀 Iniciando Monitor de Sistema Distribuido Educativo...", "info");
-            addEventToLog("EDUCATIVO", "💡 Este monitor enseña conceptos de sistemas distribuidos, WebSockets y comunicación IoT", "info");
+            // addEventToLog("EDUCATIVO", "💡 Este monitor enseña conceptos de sistemas distribuidos, WebSockets y comunicación IoT", "info");
             
             connectWebSocket();
 

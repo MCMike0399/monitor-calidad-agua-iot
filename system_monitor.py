@@ -40,10 +40,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ============================================================================
-# MODELOS DE DATOS PARA MONITOREO
-# ============================================================================
-
 class EventType(Enum):
     """Tipos de eventos del sistema"""
     CONNECTION = "connection"
@@ -93,39 +89,26 @@ class SystemMetrics:
             "events_per_second": round(self.events_per_second, 2)
         }
 
-# ============================================================================
-# MONITOR DE SISTEMA DISTRIBUIDO
-# ============================================================================
-
 class DistributedSystemMonitor:
     """
-    Monitor Avanzado de Sistema Distribuido
-    ======================================
+    Monitor Avanzado de Sistema Distribuido - CORREGIDO
+    =================================================
     
-    Esta clase implementa un sistema de monitoreo completo que permite
-    a los profesores y estudiantes ver en tiempo real:
-    
-    - Flujo de datos entre componentes
-    - Métricas de performance del sistema
-    - Eventos de conexión/desconexión
-    - Latencia de comunicación
-    - Uso de recursos del servidor
-    
-    Patrones Implementados:
-    - Observer: Para notificar cambios
-    - Publisher/Subscriber: Para eventos del sistema
-    - Singleton: Una sola instancia de monitoreo
+    CAMBIOS IMPORTANTES:
+    - Separación clara entre conexiones del sistema de monitoreo y clientes web reales
+    - Solo cuenta como "active_connections" las conexiones de clientes web (dashboard + admin)
+    - Las conexiones del sistema de monitoreo se rastrean por separado para debugging
     """
     
     def __init__(self):
-        # Almacén de eventos recientes (últimos 1000)
+        # Almacén de eventos recientes
         self.recent_events: deque = deque(maxlen=1000)
         
-        # Clientes conectados al monitor
-        self.monitor_clients: List[WebSocket] = []
+        # CORREGIDO: Separación clara entre tipos de conexiones
+        self.monitor_clients: List[WebSocket] = []  # Solo conexiones del sistema de monitoreo
         
         # Métricas del sistema
-        self.metrics_history: deque = deque(maxlen=100)  # Últimos 100 puntos
+        self.metrics_history: deque = deque(maxlen=100)
         
         # Contadores para estadísticas
         self.counters = {
@@ -137,12 +120,13 @@ class DistributedSystemMonitor:
             "bytes_received": 0
         }
         
-        # MEJORADO: Rastreo específico de conexiones por tipo
+        # CORREGIDO: Rastreo específico de conexiones por tipo
         self.connection_registry = {
-            "monitor_clients": set(),  # IDs únicos de clientes monitor
-            "admin_clients": set(),    # IDs únicos de clientes admin
-            "arduino_active": False,   # Estado del Arduino
-            "last_arduino_ping": None  # Última vez que Arduino envió datos
+            "water_monitor_clients": set(),    # IDs únicos de clientes del dashboard de agua
+            "admin_clients": set(),            # IDs únicos de clientes admin  
+            "system_monitor_clients": set(),   # IDs únicos del sistema de monitoreo (NO se cuenta en active_connections)
+            "arduino_active": False,          # Estado del Arduino
+            "last_arduino_ping": None         # Última vez que Arduino envió datos
         }
         
         # Información del sistema
@@ -157,41 +141,51 @@ class DistributedSystemMonitor:
         # Tarea de monitoreo de métricas
         self.metrics_task: Optional[asyncio.Task] = None
         
-        logger.info("🔍 Monitor de sistema distribuido inicializado")
+        logger.info("🔍 Monitor de sistema distribuido inicializado con conteo de conexiones corregido")
     
     def generate_connection_id(self, websocket: WebSocket, client_type: str) -> str:
         """Genera un ID único para cada conexión WebSocket"""
         client_host = getattr(websocket.client, 'host', 'unknown') if websocket.client else 'unknown'
         client_port = getattr(websocket.client, 'port', 0) if websocket.client else 0
-        timestamp = int(time.time() * 1000)  # timestamp en ms
+        timestamp = int(time.time() * 1000)
         return f"{client_type}_{client_host}_{client_port}_{timestamp}"
     
-    async def record_event(self, event: SystemEvent):
+    def get_web_client_count(self) -> int:
         """
-        Registra un nuevo evento del sistema con logging educativo mejorado
+        NUEVO: Función específica para contar SOLO clientes web reales
         
-        Args:
-            event: Evento a registrar
+        Returns:
+            int: Número total de clientes web conectados (dashboard + admin, excluyendo sistema de monitoreo)
         """
+        return len(self.connection_registry["water_monitor_clients"]) + len(self.connection_registry["admin_clients"])
+    
+    async def record_event(self, event: SystemEvent):
+        """Registra un nuevo evento del sistema con logging educativo mejorado"""
         self.recent_events.append(event)
         
         # Actualizar contadores
         if event.event_type == EventType.CONNECTION:
             self.counters["total_connections"] += 1
-            # MEJORADO: Logging educativo específico
-            if "monitor" in event.source.lower():
-                logger.info(f"🌊 Cliente del dashboard de agua conectado via WebSocket (total activos: {len(self.connection_registry['monitor_clients'])})")
-            elif "admin" in event.source.lower():
-                logger.info(f"🛠️ Panel de administración conectado via WebSocket para control del sistema")
+            
+            # CORREGIDO: Logging educativo específico con separación de tipos
+            if "websocket_monitor_websocket" in event.source.lower():
+                logger.info(f"🌊 Cliente del dashboard de agua conectado via WebSocket (total dashboard: {len(self.connection_registry['water_monitor_clients'])})")
+            elif "admin_websocket" in event.source.lower():
+                logger.info(f"🛠️ Panel de administración conectado via WebSocket (total admin: {len(self.connection_registry['admin_clients'])})")
             elif "system_monitor" in event.source.lower():
-                logger.info(f"🔍 Monitor de sistema conectado para observabilidad en tiempo real")
+                logger.info(f"🔍 Monitor de sistema conectado para observabilidad (NO cuenta como cliente web)")
+            else:
+                logger.info(f"🔗 Nueva conexión de tipo desconocido: {event.source}")
                 
         elif event.event_type == EventType.DISCONNECTION:
             self.counters["total_disconnections"] += 1
-            if "monitor" in event.source.lower():
-                logger.info(f"🔌 Cliente del dashboard desconectado (quedan {len(self.connection_registry['monitor_clients'])} activos)")
-            elif "admin" in event.source.lower():
-                logger.info(f"🛠️ Panel de administración desconectado")
+            
+            if "websocket_monitor_websocket" in event.source.lower():
+                logger.info(f"🔌 Cliente del dashboard desconectado (quedan {len(self.connection_registry['water_monitor_clients'])} dashboard activos)")
+            elif "admin_websocket" in event.source.lower():
+                logger.info(f"🛠️ Panel de administración desconectado (quedan {len(self.connection_registry['admin_clients'])} admin activos)")
+            elif "system_monitor" in event.source.lower():
+                logger.info(f"🔍 Monitor de sistema desconectado")
                 
         elif event.event_type in [EventType.DATA_RECEIVED, EventType.DATA_SENT]:
             self.counters["total_data_messages"] += 1
@@ -201,34 +195,41 @@ class DistributedSystemMonitor:
                 else:
                     self.counters["bytes_received"] += event.details["bytes"]
                     
-            # MEJORADO: Logging educativo para datos
+            # CORREGIDO: Logging educativo para datos con información de conexiones web
             if event.event_type == EventType.DATA_RECEIVED and "arduino" in event.source.lower():
                 self.connection_registry["arduino_active"] = True
                 self.connection_registry["last_arduino_ping"] = datetime.now()
-                logger.info(f"📡 Datos del Arduino recibidos via HTTP POST: {event.details.get('bytes', 0)} bytes")
+                web_clients = self.get_web_client_count()
+                logger.info(f"📡 Datos del Arduino recibidos via HTTP POST: {event.details.get('bytes', 0)} bytes (distribuir a {web_clients} clientes web)")
                 
         elif event.event_type == EventType.ERROR:
             self.counters["total_errors"] += 1
             logger.warning(f"💥 Error en el sistema: {event.details.get('error', 'Error desconocido')}")
         
-        # Notificar a clientes conectados
+        # Notificar a clientes conectados al sistema de monitoreo
         await self._broadcast_event(event)
         
         logger.debug(f"📊 Evento registrado: {event.event_type.value} desde {event.source}")
     
     async def record_connection(self, websocket: WebSocket, client_type: str):
-        """Registra una nueva conexión con ID único"""
+        """CORREGIDO: Registra una nueva conexión con categorización apropiada"""
         connection_id = self.generate_connection_id(websocket, client_type)
         
+        # CORREGIDO: Categorizar conexiones apropiadamente
         if client_type == "monitor":
-            self.connection_registry["monitor_clients"].add(connection_id)
+            # Cliente del dashboard de agua (SÍ cuenta como cliente web)
+            self.connection_registry["water_monitor_clients"].add(connection_id)
         elif client_type == "admin":
+            # Cliente del panel admin (SÍ cuenta como cliente web)
             self.connection_registry["admin_clients"].add(connection_id)
         elif client_type == "system_monitor":
-            # System monitor es especial, no cuenta como cliente regular
-            pass
+            # Monitor de sistema (NO cuenta como cliente web)
+            self.connection_registry["system_monitor_clients"].add(connection_id)
+        else:
+            logger.warning(f"⚠️ Tipo de cliente desconocido: {client_type}")
             
-        # Registrar evento
+        # Registrar evento con información detallada
+        web_client_count = self.get_web_client_count()
         await self.record_event(SystemEvent(
             event_type=EventType.CONNECTION,
             timestamp=datetime.now(),
@@ -237,20 +238,31 @@ class DistributedSystemMonitor:
                 "client_type": client_type,
                 "connection_id": connection_id,
                 "client_ip": getattr(websocket.client, 'host', 'unknown') if websocket.client else 'unknown',
-                "total_connections": len(self.connection_registry["monitor_clients"]) + len(self.connection_registry["admin_clients"])
+                "total_web_connections": web_client_count,  # CORREGIDO: Solo clientes web
+                "is_web_client": client_type in ["monitor", "admin"],  # NUEVO: Flag para identificar
+                "breakdown": {  # NUEVO: Desglose detallado
+                    "dashboard_clients": len(self.connection_registry["water_monitor_clients"]),
+                    "admin_clients": len(self.connection_registry["admin_clients"]),
+                    "system_monitor_clients": len(self.connection_registry["system_monitor_clients"])
+                }
             }
         ))
         
         return connection_id
     
     async def record_disconnection(self, connection_id: str, client_type: str, duration_ms: float = 0.0):
-        """Registra una desconexión"""
-        if client_type == "monitor" and connection_id in self.connection_registry["monitor_clients"]:
-            self.connection_registry["monitor_clients"].remove(connection_id)
+        """CORREGIDO: Registra una desconexión con categorización apropiada"""
+        
+        # CORREGIDO: Remover de la categoría apropiada
+        if client_type == "monitor" and connection_id in self.connection_registry["water_monitor_clients"]:
+            self.connection_registry["water_monitor_clients"].remove(connection_id)
         elif client_type == "admin" and connection_id in self.connection_registry["admin_clients"]:
             self.connection_registry["admin_clients"].remove(connection_id)
+        elif client_type == "system_monitor" and connection_id in self.connection_registry["system_monitor_clients"]:
+            self.connection_registry["system_monitor_clients"].remove(connection_id)
             
-        # Registrar evento
+        # Registrar evento con información detallada
+        web_client_count = self.get_web_client_count()
         await self.record_event(SystemEvent(
             event_type=EventType.DISCONNECTION,
             timestamp=datetime.now(),
@@ -258,7 +270,13 @@ class DistributedSystemMonitor:
             details={
                 "client_type": client_type,
                 "connection_id": connection_id,
-                "total_connections": len(self.connection_registry["monitor_clients"]) + len(self.connection_registry["admin_clients"])
+                "total_web_connections": web_client_count,  # CORREGIDO: Solo clientes web
+                "is_web_client": client_type in ["monitor", "admin"],  # NUEVO
+                "breakdown": {  # NUEVO: Desglose detallado
+                    "dashboard_clients": len(self.connection_registry["water_monitor_clients"]),
+                    "admin_clients": len(self.connection_registry["admin_clients"]),
+                    "system_monitor_clients": len(self.connection_registry["system_monitor_clients"])
+                }
             },
             duration_ms=duration_ms
         ))
@@ -275,12 +293,13 @@ class DistributedSystemMonitor:
             details={
                 "bytes": data_size,
                 "protocol": "HTTP_POST",
-                "explanation": "Arduino usa HTTP POST porque consume menos RAM que WebSocket"
+                "explanation": "Arduino usa HTTP POST porque consume menos RAM que WebSocket",
+                "web_clients_to_notify": self.get_web_client_count()  # NUEVO
             }
         ))
     
     async def _broadcast_event(self, event: SystemEvent):
-        """Envía el evento a todos los clientes conectados"""
+        """Envía el evento a todos los clientes conectados del sistema de monitoreo"""
         if not self.monitor_clients:
             return
         
@@ -302,9 +321,7 @@ class DistributedSystemMonitor:
             self.monitor_clients.remove(client)
     
     async def collect_system_metrics(self):
-        """
-        Recolecta métricas del sistema en tiempo real
-        """
+        """Recolecta métricas del sistema en tiempo real"""
         logger.info("📊 Iniciando recolección de métricas del sistema cada 2 segundos")
         
         while True:
@@ -321,8 +338,8 @@ class DistributedSystemMonitor:
                     if (current_time - e.timestamp).total_seconds() <= 1
                 ])
                 
-                # CORREGIDO: Contar conexiones activas correctamente
-                active_connections = len(self.connection_registry["monitor_clients"]) + len(self.connection_registry["admin_clients"])
+                # CORREGIDO: Contar SOLO conexiones web reales, excluyendo sistema de monitoreo
+                active_web_connections = self.get_web_client_count()
                 
                 # Verificar si Arduino sigue activo (timeout de 10 segundos)
                 if (self.connection_registry["last_arduino_ping"] and 
@@ -339,18 +356,18 @@ class DistributedSystemMonitor:
                         "packets_sent": network.packets_sent,
                         "packets_recv": network.packets_recv
                     },
-                    active_connections=active_connections,
+                    active_connections=active_web_connections,  # CORREGIDO: Solo clientes web
                     total_events=len(self.recent_events),
                     events_per_second=events_in_last_second
                 )
                 
                 self.metrics_history.append(metrics)
                 
-                # Enviar métricas a clientes
+                # Enviar métricas a clientes del sistema de monitoreo
                 await self._broadcast_metrics(metrics)
                 
                 # Esperar antes de la siguiente recolección
-                await asyncio.sleep(2)  # Cada 2 segundos
+                await asyncio.sleep(2)
                 
             except asyncio.CancelledError:
                 logger.info("🛑 Recolección de métricas cancelada")
@@ -360,7 +377,7 @@ class DistributedSystemMonitor:
                 await asyncio.sleep(5)
     
     async def _broadcast_metrics(self, metrics: SystemMetrics):
-        """Envía métricas a todos los clientes"""
+        """Envía métricas a todos los clientes del sistema de monitoreo"""
         if not self.monitor_clients:
             return
         
@@ -370,8 +387,11 @@ class DistributedSystemMonitor:
             "counters": self.counters,
             "connection_states": {
                 "arduino_active": self.connection_registry["arduino_active"],
-                "monitor_clients": len(self.connection_registry["monitor_clients"]),
+                # CORREGIDO: Información detallada y precisa sobre conexiones
+                "water_monitor_clients": len(self.connection_registry["water_monitor_clients"]),
                 "admin_clients": len(self.connection_registry["admin_clients"]),
+                "system_monitor_clients": len(self.connection_registry["system_monitor_clients"]),
+                "total_web_clients": self.get_web_client_count(),  # NUEVO: Total correcto
                 "last_arduino_ping": self.connection_registry["last_arduino_ping"].isoformat() if self.connection_registry["last_arduino_ping"] else None
             },
             "system_info": {
@@ -393,15 +413,15 @@ class DistributedSystemMonitor:
             self.monitor_clients.remove(client)
     
     def add_monitor_client(self, websocket: WebSocket):
-        """Registra un nuevo cliente de monitoreo"""
+        """Registra un nuevo cliente de monitoreo del sistema (NO es cliente web)"""
         self.monitor_clients.append(websocket)
-        logger.info(f"🔍 Cliente de monitoreo conectado. Total: {len(self.monitor_clients)}")
+        logger.info(f"🔍 Cliente de monitoreo de SISTEMA conectado. Monitor clients: {len(self.monitor_clients)} (NO cuenta como cliente web)")
     
     def remove_monitor_client(self, websocket: WebSocket):
-        """Remueve un cliente de monitoreo"""
+        """Remueve un cliente de monitoreo del sistema"""
         if websocket in self.monitor_clients:
             self.monitor_clients.remove(websocket)
-            logger.info(f"🔍 Cliente de monitoreo desconectado. Total: {len(self.monitor_clients)}")
+            logger.info(f"🔍 Cliente de monitoreo de SISTEMA desconectado. Monitor clients: {len(self.monitor_clients)}")
     
     async def start_monitoring(self):
         """Inicia el monitoreo del sistema"""
@@ -429,38 +449,19 @@ class DistributedSystemMonitor:
 # Instancia global del monitor
 system_monitor = DistributedSystemMonitor()
 
-# ============================================================================
-# WEBSOCKET ENDPOINT PARA MONITOREO
-# ============================================================================
-
 async def system_monitor_websocket(websocket: WebSocket):
     """
-    WebSocket para Monitoreo del Sistema Distribuido
-    ===============================================
+    WebSocket para Monitoreo del Sistema Distribuido - CORREGIDO
+    ==========================================================
     
-    Este endpoint proporciona acceso en tiempo real a:
-    - Eventos del sistema
-    - Métricas de performance
-    - Estadísticas de comunicación
-    - Información de debugging
-    
-    Args:
-        websocket: Conexión WebSocket del cliente monitor
+    IMPORTANTE: Este WebSocket es para el sistema de monitoreo interno,
+    NO cuenta como cliente web en las estadísticas.
     """
     await websocket.accept()
     system_monitor.add_monitor_client(websocket)
     
-    # Registrar evento de conexión
-    await system_monitor.record_event(SystemEvent(
-        event_type=EventType.CONNECTION,
-        timestamp=datetime.now(),
-        source="system_monitor",
-        details={
-            "client_type": "system_monitor", 
-            "endpoint": "/system-monitor/ws",
-            "purpose": "Educational system monitoring and distributed systems visualization"
-        }
-    ))
+    # CORREGIDO: Registrar como conexión del sistema de monitoreo (no cliente web)
+    connection_id = await system_monitor.record_connection(websocket, "system_monitor")
     
     connection_start_time = time.time()
     
@@ -476,11 +477,14 @@ async def system_monitor_websocket(websocket: WebSocket):
             "counters": system_monitor.counters,
             "connection_states": {
                 "arduino_active": system_monitor.connection_registry["arduino_active"],
-                "monitor_clients": len(system_monitor.connection_registry["monitor_clients"]),
+                # CORREGIDO: Información precisa sobre tipos de conexiones
+                "water_monitor_clients": len(system_monitor.connection_registry["water_monitor_clients"]),
                 "admin_clients": len(system_monitor.connection_registry["admin_clients"]),
+                "system_monitor_clients": len(system_monitor.connection_registry["system_monitor_clients"]),
+                "total_web_clients": system_monitor.get_web_client_count(),  # NUEVO
             },
-            "recent_events": [event.to_dict() for event in list(system_monitor.recent_events)[-20:]],  # Últimos 20 eventos
-            "metrics_history": [metrics.to_dict() for metrics in list(system_monitor.metrics_history)[-10:]]  # Últimos 10 puntos
+            "recent_events": [event.to_dict() for event in list(system_monitor.recent_events)[-20:]],
+            "metrics_history": [metrics.to_dict() for metrics in list(system_monitor.metrics_history)[-10:]]
         }
         await websocket.send_json(initial_data)
         
@@ -511,7 +515,8 @@ async def system_monitor_websocket(websocket: WebSocket):
                                 "action": "full_history_sent",
                                 "events_count": len(system_monitor.recent_events),
                                 "metrics_count": len(system_monitor.metrics_history),
-                                "bytes": len(json.dumps(history_data))
+                                "bytes": len(json.dumps(history_data)),
+                                "web_clients_active": system_monitor.get_web_client_count()  # NUEVO
                             }
                         ))
                         
@@ -536,7 +541,7 @@ async def system_monitor_websocket(websocket: WebSocket):
                             "command": command.get("action", "unknown"), 
                             "bytes": len(message),
                             "protocol": "WebSocket",
-                            "explanation": "Cliente usa WebSocket para comandos interactivos"
+                            "explanation": "Cliente del sistema de monitoreo usa WebSocket para comandos interactivos"
                         }
                     ))
                     
@@ -551,9 +556,11 @@ async def system_monitor_websocket(websocket: WebSocket):
                         "timestamp": datetime.now().isoformat(),
                         "system_status": "active",
                         "connections": {
-                            "monitor": len(system_monitor.connection_registry["monitor_clients"]),
+                            "water_monitor": len(system_monitor.connection_registry["water_monitor_clients"]),
                             "admin": len(system_monitor.connection_registry["admin_clients"]),
-                            "arduino": system_monitor.connection_registry["arduino_active"]
+                            "system_monitor": len(system_monitor.connection_registry["system_monitor_clients"]),
+                            "arduino": system_monitor.connection_registry["arduino_active"],
+                            "total_web_clients": system_monitor.get_web_client_count()  # NUEVO
                         }
                     })
                     logger.debug("🏓 Heartbeat enviado al cliente de monitoreo")
@@ -569,30 +576,11 @@ async def system_monitor_websocket(websocket: WebSocket):
         system_monitor.remove_monitor_client(websocket)
         
         # Registrar evento de desconexión con duración
-        duration = (time.time() - connection_start_time) * 1000  # en milisegundos
-        await system_monitor.record_event(SystemEvent(
-            event_type=EventType.DISCONNECTION,
-            timestamp=datetime.now(),
-            source="system_monitor",
-            details={
-                "client_type": "system_monitor", 
-                "reason": "websocket_closed",
-                "session_duration_ms": duration
-            },
-            duration_ms=duration
-        ))
-
-# ============================================================================
-# INTERFAZ WEB DEL MONITOR DE SISTEMA
-# ============================================================================
+        duration = (time.time() - connection_start_time) * 1000
+        await system_monitor.record_disconnection(connection_id, "system_monitor", duration)
 
 async def get_system_monitor_page():
-    """
-    Página Web del Monitor de Sistema Distribuido
-    ============================================
-    
-    Carga la página desde el archivo HTML en static/
-    """
+    """Página Web del Monitor de Sistema Distribuido"""
     html_path = os.path.join("static", "system_monitor.html")
     if os.path.exists(html_path):
         logger.info("🔍 Sirviendo monitor de sistema desde archivo")
@@ -605,17 +593,8 @@ async def get_system_monitor_page():
             status_code=404
         )
 
-# ============================================================================
-# FUNCIONES PARA INTEGRACIÓN CON EL SISTEMA PRINCIPAL
-# ============================================================================
-
 def integrate_system_monitor(app: FastAPI):
-    """
-    Integra el monitor de sistema con la aplicación principal
-    
-    Args:
-        app: Instancia de FastAPI
-    """
+    """Integra el monitor de sistema con la aplicación principal"""
     
     @app.get("/system-monitor")
     async def get_system_monitor_route():
@@ -631,7 +610,7 @@ def integrate_system_monitor(app: FastAPI):
     async def start_system_monitoring():
         """Iniciar monitoreo del sistema"""
         await system_monitor.start_monitoring()
-        logger.info("🔍 Sistema de monitoreo integrado e iniciado")
+        logger.info("🔍 Sistema de monitoreo integrado e iniciado con conteo de conexiones corregido")
     
     @app.on_event("shutdown")
     async def stop_system_monitoring():
@@ -639,36 +618,27 @@ def integrate_system_monitor(app: FastAPI):
         await system_monitor.stop_monitoring()
         logger.info("🔍 Sistema de monitoreo detenido")
 
-# ============================================================================
-# DECORADORES PARA MONITOREO AUTOMÁTICO
-# ============================================================================
-
 def monitor_websocket_events(func):
     """
-    Decorador para monitorear automáticamente eventos de WebSocket
-    
-    Args:
-        func: Función de WebSocket a decorar
-    
-    Returns:
-        Función decorada que registra eventos automáticamente
+    Decorador para monitorear automáticamente eventos de WebSocket - CORREGIDO
     """
     async def wrapper(websocket: WebSocket, *args, **kwargs):
         start_time = time.time()
         client_type = "unknown"
         connection_id = None
         
-        # Determinar tipo de cliente basado en el nombre de la función
-        if "monitor" in func.__name__:
-            client_type = "monitor"
+        # CORREGIDO: Determinar tipo de cliente apropiadamente
+        if "monitor_websocket" in func.__name__ and "admin" not in func.__name__:
+            client_type = "monitor"  # Cliente del dashboard de agua (SÍ cuenta como web)
         elif "admin" in func.__name__:
-            client_type = "admin"
+            client_type = "admin"    # Cliente del panel admin (SÍ cuenta como web)
+        elif "system_monitor" in func.__name__:
+            client_type = "system_monitor"  # Sistema de monitoreo (NO cuenta como web)
         
-        # Registrar conexión
+        # Registrar conexión con tipo correcto
         connection_id = await system_monitor.record_connection(websocket, client_type)
         
         try:
-            # Ejecutar la función original
             result = await func(websocket, *args, **kwargs)
             return result
         except Exception as e:
@@ -680,14 +650,15 @@ def monitor_websocket_events(func):
                 details={
                     "error": str(e), 
                     "error_type": type(e).__name__,
-                    "function": func.__name__
+                    "function": func.__name__,
+                    "client_type": client_type
                 }
             ))
             raise
         finally:
             # Registrar desconexión
             if connection_id:
-                duration = (time.time() - start_time) * 1000  # en milisegundos
+                duration = (time.time() - start_time) * 1000
                 await system_monitor.record_disconnection(connection_id, client_type, duration)
     
     return wrapper

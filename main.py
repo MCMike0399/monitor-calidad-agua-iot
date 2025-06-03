@@ -240,7 +240,7 @@ async def health_check():
         "version": "2.0.0",
         "environment": os.getenv("ENVIRONMENT", "development"),
         "websockets": "active",
-        "database": "not_connected"  # Expandir cuando agregues BD
+        "database": "not_connected" 
     }
 
 # ============================================================================
@@ -308,10 +308,6 @@ async def shutdown_event():
     """
     logger.info("🛑 Cerrando servidor de Monitor de Agua IoT...")
     logger.info("✅ Cleanup completado")
-    
-    # Aquí podrías cerrar conexiones y hacer cleanup
-    # await database.disconnect()
-    # await redis.disconnect()
 
 # ============================================================================
 # FUNCIÓN PRINCIPAL - PUNTO DE ENTRADA
