@@ -9,19 +9,6 @@ Demuestra conceptos clave de:
 - HTTP REST API para dispositivos IoT con limitaciones
 - Containerización con Docker
 - Middleware para logging y manejo de errores
-
-Arquitectura del Sistema:
-┌─────────────┐    HTTP POST    ┌──────────────┐    WebSocket    ┌─────────────┐
-│   Arduino   │ ───────────────▶│   FastAPI    │ ───────────────▶│  Cliente    │
-│  (Sensores) │                 │   Servidor   │                 │    Web      │
-└─────────────┘                 └──────────────┘                 └─────────────┘
-                                        │
-                                        ▼
-                                ┌──────────────┐
-                                │   Dashboard  │
-                                │    Admin     │
-                                └──────────────┘
-
 """
 
 import uuid
@@ -31,7 +18,7 @@ import uvicorn
 import asyncio
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from logging_config import get_logger, setup_logging
 from dotenv import load_dotenv
@@ -211,76 +198,21 @@ async def root():
     """
     logger.info("📍 Acceso a página principal")
     
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🌊 Monitor de Calidad de Agua IoT</title>
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white; min-height: 100vh;
-            }
-            .container { max-width: 800px; margin: 0 auto; text-align: center; }
-            .card { 
-                background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-                border-radius: 15px; padding: 30px; margin: 20px 0;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            }
-            .btn { 
-                display: inline-block; background: rgba(255,255,255,0.2);
-                padding: 15px 25px; margin: 10px; border-radius: 50px;
-                text-decoration: none; color: white; transition: all 0.3s;
-                border: 2px solid rgba(255,255,255,0.3);
-            }
-            .btn:hover { 
-                background: rgba(255,255,255,0.3); 
-                transform: translateY(-2px);
-            }
-            .status { font-family: 'Courier New', monospace; font-size: 14px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🌊 Monitor de Calidad de Agua IoT</h1>
-            <div class="card">
-                <h2>Sistema de Monitoreo en Tiempo Real</h2>
-                <p>Monitoreo de parámetros de calidad de agua usando Arduino y WebSockets</p>
-                <div class="status">
-                    <p>🟢 Servidor: Activo</p>
-                    <p>⏰ Timestamp: <span id="timestamp"></span></p>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h3>Interfaces Disponibles</h3>
-                <a href="/water-monitor" class="btn">📊 Monitor de Agua</a>
-                <a href="/admin-dashboard" class="btn">⚙️ Dashboard Admin</a>
-                <a href="/docs" class="btn">📚 API Docs</a>
-            </div>
-            
-            <div class="card">
-                <h3>Arquitectura del Sistema</h3>
-                <p style="font-family: monospace; font-size: 12px;">
-                Arduino → HTTP POST → FastAPI → WebSocket → Cliente Web
-                </p>
-            </div>
-        </div>
-        
-        <script>
-            // Actualizar timestamp cada segundo
-            function updateTimestamp() {
-                document.getElementById('timestamp').textContent = new Date().toLocaleString();
-            }
-            updateTimestamp();
-            setInterval(updateTimestamp, 1000);
-        </script>
-    </body>
-    </html>
-    """)
+    # Cargar página principal desde archivo
+    html_path = os.path.join("static", "index.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    else:
+        # Fallback si no existe el archivo
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html><head><title>Monitor IoT</title></head>
+        <body><h1>🌊 Monitor de Calidad de Agua IoT</h1>
+        <p>⚠️ Archivo de página principal no encontrado</p>
+        <a href="/water-monitor">📊 Monitor de Agua</a> | 
+        <a href="/admin-dashboard">⚙️ Dashboard Admin</a>
+        </body></html>
+        """, status_code=200)
 
 @app.get("/health")
 async def health_check():
@@ -407,11 +339,11 @@ if __name__ == "__main__":
     logger.info(f"📂 Directorio de trabajo: {os.getcwd()}")
     
     # Iniciar servidor Uvicorn
-    # reload=True permite recarga automática en desarrollo
+    # IMPORTANTE: reload=False para evitar el error de pathlib en Python 3.12
     uvicorn.run(
         "main:app", 
         host=host, 
         port=port, 
-        reload=debug_mode,
+        reload=False,  # Desactivado para Python 3.12 compatibility
         log_level="info" if not debug_mode else "debug"
     )

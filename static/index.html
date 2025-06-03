@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Monitor de Calidad de Agua IoT</title>
+      <style>
+         body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+         }
+         .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+         }
+         .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+         }
+         .btn {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px 25px;
+            margin: 10px;
+            border-radius: 50px;
+            text-decoration: none;
+            color: white;
+            transition: all 0.3s;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+         }
+         .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+         }
+         .status {
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+         }
+      </style>
+   </head>
+   <body>
+      <div class="container">
+         <h1>🌊 Monitor de Calidad de Agua IoT</h1>
+         <div class="card">
+            <h2>Sistema de Monitoreo en Tiempo Real</h2>
+            <p>Monitoreo de parámetros de calidad de agua usando Arduino y WebSockets</p>
+            <div class="status">
+               <p>🟢 Servidor: Activo</p>
+               <p>⏰ Timestamp: <span id="timestamp"></span></p>
+            </div>
+         </div>
+
+         <div class="card">
+            <h3>Interfaces Disponibles</h3>
+            <a href="/water-monitor" class="btn">📊 Monitor de Agua</a>
+            <a href="/admin-dashboard" class="btn">⚙️ Dashboard Admin</a>
+            <a href="/system-monitor" class="btn">🔍 System Monitor</a>
+            <a href="/docs" class="btn">📚 API Docs</a>
+         </div>
+
+         <div class="card">
+            <h3>Arquitectura del Sistema</h3>
+            <p style="font-family: monospace; font-size: 12px">
+               Arduino → HTTP POST → FastAPI → WebSocket → Cliente Web
+            </p>
+         </div>
+      </div>
+
+      <script>
+         // Actualizar timestamp cada segundo
+         function updateTimestamp() {
+            document.getElementById("timestamp").textContent = new Date().toLocaleString();
+         }
+         updateTimestamp();
+         setInterval(updateTimestamp, 1000);
+      </script>
+   </body>
+</html>
