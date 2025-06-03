@@ -24,10 +24,30 @@
          .header {
             text-align: center;
             margin-bottom: 30px;
+            position: relative;
+         }
+         .back-btn {
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+         }
+         .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
          }
          .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
          }
          .card {
@@ -36,6 +56,9 @@
             border-radius: 15px;
             padding: 25px;
             border: 1px solid rgba(255, 255, 255, 0.2);
+         }
+         .wide-card {
+            grid-column: 1 / -1;
          }
          .status-indicator {
             display: inline-block;
@@ -99,30 +122,50 @@
          }
          .reading-display {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             gap: 15px;
             margin: 15px 0;
+            width: 100%;
          }
          .reading-item {
             text-align: center;
             background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
+            padding: 15px 10px;
             border-radius: 8px;
+            min-width: 120px;
          }
          .reading-value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             margin: 5px 0;
+            word-break: break-all;
          }
          .reading-label {
             font-size: 12px;
             opacity: 0.8;
+         }
+         @media (max-width: 768px) {
+            .grid {
+               grid-template-columns: 1fr;
+            }
+            .back-btn {
+               position: static;
+               margin-bottom: 15px;
+               width: fit-content;
+            }
+            .reading-display {
+               grid-template-columns: 1fr;
+            }
          }
       </style>
    </head>
    <body>
       <div class="dashboard">
          <div class="header">
+            <a href="/" class="back-btn">
+               <span>←</span>
+               <span>Menú Principal</span>
+            </a>
             <h1>🛠️ Dashboard de Administración</h1>
             <p>Monitor IoT de Calidad de Agua - Panel de Control del Sistema</p>
             <div>
@@ -172,7 +215,7 @@
             </div>
 
             <!-- Lecturas Actuales -->
-            <div class="card">
+            <div class="card wide-card">
                <h3>🌊 Lecturas Actuales</h3>
                <div class="reading-display">
                   <div class="reading-item">
@@ -191,18 +234,20 @@
                      <div class="reading-label">μS/cm</div>
                   </div>
                </div>
-               <div class="metric">
-                  <span>Origen de datos:</span>
-                  <span id="dataSource" class="metric-value">--</span>
-               </div>
-               <div class="metric">
-                  <span>Última actualización:</span>
-                  <span id="lastUpdate" class="metric-value">--</span>
+               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                  <div class="metric">
+                     <span>Origen de datos:</span>
+                     <span id="dataSource" class="metric-value">--</span>
+                  </div>
+                  <div class="metric">
+                     <span>Última actualización:</span>
+                     <span id="lastUpdate" class="metric-value">--</span>
+                  </div>
                </div>
             </div>
 
             <!-- Log del Sistema -->
-            <div class="card" style="grid-column: 1 / -1">
+            <div class="card wide-card">
                <h3>📝 Log del Sistema en Tiempo Real</h3>
                <div id="systemLog" class="log">
                   <div style="color: #4ade80">Sistema iniciando...</div>

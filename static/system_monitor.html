@@ -22,6 +22,26 @@
             padding: 20px;
             text-align: center;
             color: white;
+            position: relative;
+         }
+         .back-btn {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+         }
+         .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
          }
          .dashboard {
             padding: 20px;
@@ -150,32 +170,39 @@
          }
          .topology {
             background: #0f0f23;
-            height: 200px;
+            height: 350px;
             border-radius: 8px;
             border: 1px solid #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             position: relative;
             overflow: hidden;
          }
          .node {
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 12px;
+            font-size: 11px;
             text-align: center;
             position: absolute;
-            border: 2px solid;
+            border: 3px solid;
+            transition: all 0.3s ease;
+            z-index: 10;
+         }
+         .node.active {
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+            animation: nodeGlow 2s infinite;
+         }
+         @keyframes nodeGlow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
          }
          .arduino-node {
             background: #f97316;
             border-color: #ea580c;
-            top: 20px;
+            top: 30px;
             left: 50px;
          }
          .server-node {
@@ -188,37 +215,78 @@
          .client-node {
             background: #06b6d4;
             border-color: #0891b2;
-            top: 20px;
-            right: 50px;
+            top: 30px;
+            right: 80px;
          }
          .admin-node {
             background: #ef4444;
             border-color: #dc2626;
-            bottom: 20px;
-            left: 50px;
+            bottom: 30px;
+            left: 80px;
          }
          .monitor-node {
             background: #10b981;
             border-color: #059669;
-            bottom: 20px;
+            bottom: 30px;
             right: 50px;
          }
          .connection-line {
             position: absolute;
-            height: 2px;
-            background: #4ade80;
+            height: 3px;
+            background: linear-gradient(90deg, #4ade80, #06b6d4);
             transform-origin: left center;
-            opacity: 0.6;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 5;
+            border-radius: 1px;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+         }
+         .connection-line.active {
+            opacity: 0.8;
+            animation: dataFlow 2s infinite;
+         }
+         @keyframes dataFlow {
+            0% { box-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+         }
+         .connection-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 15;
+         }
+         .connection-counter {
+            margin: 2px 0;
+         }
+         .active-counter {
+            color: #4ade80;
+         }
+         .inactive-counter {
+            color: #f87171;
          }
          @media (max-width: 1200px) {
             .grid {
                grid-template-columns: 1fr;
+            }
+            .back-btn {
+               position: static;
+               margin-bottom: 15px;
+               width: fit-content;
             }
          }
       </style>
    </head>
    <body>
       <div class="header">
+         <a href="/" class="back-btn">
+            <span>←</span>
+            <span>Menú Principal</span>
+         </a>
          <h1>🔍 Monitor de Sistema Distribuido</h1>
          <p>Visualización en Tiempo Real de Comunicación IoT - Arduino + FastAPI + WebSockets</p>
          <div>
@@ -260,11 +328,34 @@
             <div class="card">
                <h3>🌐 Topología del Sistema</h3>
                <div class="topology" id="networkTopology">
-                  <div class="node arduino-node" title="Arduino Uno R4 WiFi">Arduino<br />Sensores</div>
-                  <div class="node server-node" title="Servidor FastAPI">FastAPI<br />Server</div>
-                  <div class="node client-node" title="Cliente Web">Web<br />Client</div>
-                  <div class="node admin-node" title="Panel Admin">Admin<br />Panel</div>
-                  <div class="node monitor-node" title="System Monitor">System<br />Monitor</div>
+                  <!-- Información de conexiones -->
+                  <div class="connection-info">
+                     <div class="connection-counter">
+                        <span>🟢 Monitor Clients: </span>
+                        <span id="monitorClientCount" class="active-counter">0</span>
+                     </div>
+                     <div class="connection-counter">
+                        <span>🔴 Admin Clients: </span>
+                        <span id="adminClientCount" class="active-counter">0</span>
+                     </div>
+                     <div class="connection-counter">
+                        <span>📡 Arduino: </span>
+                        <span id="arduinoStatus" class="inactive-counter">Desconectado</span>
+                     </div>
+                  </div>
+
+                  <!-- Nodos del sistema -->
+                  <div class="node arduino-node" id="arduinoNode" title="Arduino Uno R4 WiFi">Arduino<br />Sensores</div>
+                  <div class="node server-node active" id="serverNode" title="Servidor FastAPI">FastAPI<br />Server</div>
+                  <div class="node client-node" id="clientNode" title="Cliente Web">Web<br />Clients</div>
+                  <div class="node admin-node" id="adminNode" title="Panel Admin">Admin<br />Panel</div>
+                  <div class="node monitor-node active" id="monitorNodeVis" title="System Monitor">System<br />Monitor</div>
+
+                  <!-- Líneas de conexión -->
+                  <div class="connection-line" id="arduinoToServer"></div>
+                  <div class="connection-line" id="serverToClient"></div>
+                  <div class="connection-line" id="serverToAdmin"></div>
+                  <div class="connection-line" id="serverToMonitor"></div>
                </div>
             </div>
          </div>
@@ -334,6 +425,11 @@
          let socket = null;
          let performanceData = { time: [], cpu: [], memory: [] };
          let networkData = { time: [], bytesIn: [], bytesOut: [] };
+         let connectionStates = {
+            arduino: false,
+            monitorClients: 0,
+            adminClients: 0
+         };
 
          function connectWebSocket() {
             const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -345,6 +441,7 @@
                document.getElementById("connectionStatus").className = "status-indicator online";
                document.getElementById("connectionText").textContent = "Conectado al monitor";
                addEventToLog("SYSTEM", "Monitor conectado exitosamente", "connection");
+               updateTopologyConnections();
             };
 
             socket.onmessage = function (event) {
@@ -384,10 +481,30 @@
                data.metrics_history.forEach((metric) => updateCharts(metric));
             }
             addEventToLog("SYSTEM", "Estado inicial cargado", "connection");
+            updateTopologyConnections();
          }
 
          function handleSystemEvent(event) {
             addEventToLog(event.source, JSON.stringify(event.details), event.event_type);
+            
+            // Actualizar estados de conexión basados en eventos
+            if (event.event_type === "connection") {
+               if (event.source.includes("websocket_monitor_websocket")) {
+                  connectionStates.monitorClients++;
+               } else if (event.source.includes("admin")) {
+                  connectionStates.adminClients++;
+               } else if (event.details.endpoint === "arduino_http_route") {
+                  connectionStates.arduino = true;
+               }
+            } else if (event.event_type === "disconnection") {
+               if (event.source.includes("websocket_monitor_websocket")) {
+                  connectionStates.monitorClients = Math.max(0, connectionStates.monitorClients - 1);
+               } else if (event.source.includes("admin")) {
+                  connectionStates.adminClients = Math.max(0, connectionStates.adminClients - 1);
+               }
+            }
+            
+            updateTopologyConnections();
          }
 
          function handleSystemMetrics(data) {
@@ -397,8 +514,104 @@
                document.getElementById("connectionsMetric").textContent = data.metrics.active_connections;
                document.getElementById("eventsPerSecMetric").textContent = data.metrics.events_per_second;
                updateCharts(data.metrics);
+               
+               // Actualizar conexiones desde métricas
+               connectionStates.monitorClients = data.metrics.active_connections;
             }
             if (data.counters) updateCounters(data.counters);
+            updateTopologyConnections();
+         }
+
+         function updateTopologyConnections() {
+            // Actualizar contadores en la interfaz
+            document.getElementById("monitorClientCount").textContent = connectionStates.monitorClients;
+            document.getElementById("adminClientCount").textContent = connectionStates.adminClients;
+            document.getElementById("arduinoStatus").textContent = connectionStates.arduino ? "Conectado" : "Desconectado";
+            document.getElementById("arduinoStatus").className = connectionStates.arduino ? "active-counter" : "inactive-counter";
+
+            // Actualizar nodos
+            updateNodeState("arduinoNode", connectionStates.arduino);
+            updateNodeState("clientNode", connectionStates.monitorClients > 0);
+            updateNodeState("adminNode", connectionStates.adminClients > 0);
+
+            // Actualizar líneas de conexión
+            updateConnectionLine("arduinoToServer", connectionStates.arduino);
+            updateConnectionLine("serverToClient", connectionStates.monitorClients > 0);
+            updateConnectionLine("serverToAdmin", connectionStates.adminClients > 0);
+            updateConnectionLine("serverToMonitor", true); // Siempre activo mientras estemos conectados
+
+            // Calcular y mostrar líneas
+            calculateConnectionLines();
+         }
+
+         function updateNodeState(nodeId, isActive) {
+            const node = document.getElementById(nodeId);
+            if (isActive) {
+               node.classList.add("active");
+            } else {
+               node.classList.remove("active");
+            }
+         }
+
+         function updateConnectionLine(lineId, isActive) {
+            const line = document.getElementById(lineId);
+            if (isActive) {
+               line.classList.add("active");
+            } else {
+               line.classList.remove("active");
+            }
+         }
+
+         function calculateConnectionLines() {
+            const server = document.getElementById("serverNode");
+            const arduino = document.getElementById("arduinoNode");
+            const client = document.getElementById("clientNode");
+            const admin = document.getElementById("adminNode");
+            const monitor = document.getElementById("monitorNodeVis");
+
+            const serverRect = server.getBoundingClientRect();
+            const topologyRect = document.getElementById("networkTopology").getBoundingClientRect();
+
+            // Arduino to Server
+            if (connectionStates.arduino) {
+               const arduinoRect = arduino.getBoundingClientRect();
+               drawConnectionLine("arduinoToServer", arduinoRect, serverRect, topologyRect);
+            }
+
+            // Server to Client
+            if (connectionStates.monitorClients > 0) {
+               const clientRect = client.getBoundingClientRect();
+               drawConnectionLine("serverToClient", serverRect, clientRect, topologyRect);
+            }
+
+            // Server to Admin
+            if (connectionStates.adminClients > 0) {
+               const adminRect = admin.getBoundingClientRect();
+               drawConnectionLine("serverToAdmin", serverRect, adminRect, topologyRect);
+            }
+
+            // Server to Monitor (always active)
+            const monitorRect = monitor.getBoundingClientRect();
+            drawConnectionLine("serverToMonitor", serverRect, monitorRect, topologyRect);
+         }
+
+         function drawConnectionLine(lineId, fromRect, toRect, containerRect) {
+            const line = document.getElementById(lineId);
+            
+            const fromX = fromRect.left - containerRect.left + fromRect.width / 2;
+            const fromY = fromRect.top - containerRect.top + fromRect.height / 2;
+            const toX = toRect.left - containerRect.left + toRect.width / 2;
+            const toY = toRect.top - containerRect.top + toRect.height / 2;
+            
+            const deltaX = toX - fromX;
+            const deltaY = toY - fromY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+            
+            line.style.left = fromX + "px";
+            line.style.top = fromY + "px";
+            line.style.width = distance + "px";
+            line.style.transform = `rotate(${angle}deg)`;
          }
 
          function updateCounters(counters) {
@@ -571,6 +784,14 @@
                },
                { displayModeBar: false }
             );
+
+            // Actualizar conexiones al redimensionar
+            window.addEventListener('resize', () => {
+               setTimeout(calculateConnectionLines, 100);
+            });
+
+            // Inicializar topología
+            setTimeout(updateTopologyConnections, 500);
          };
       </script>
    </body>
