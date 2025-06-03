@@ -292,6 +292,8 @@
          let socket = null;
          let reconnectInterval = null;
          let logCounter = 0;
+         let lastLogTime = 0;
+         let dataUpdateCounter = 0;
 
          function addLogEntry(message, type = "info") {
             const log = document.getElementById("systemLog");
@@ -302,7 +304,8 @@
                error: "#f87171",
                data: "#60a5fa",
                success: "#10b981",
-               command: "#8b5cf6"
+               command: "#8b5cf6",
+               heartbeat: "#6b7280",
             };
 
             const entry = document.createElement("div");
@@ -322,43 +325,79 @@
             const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
             const wsUrl = `${protocol}//${window.location.host}/admin-dashboard/ws`;
 
-            addLogEntry("🔄 Intentando conectar al servidor WebSocket...", "info");
+            addLogEntry("🔄 Intentando conectar al servidor WebSocket admin...", "info");
+            addLogEntry(`📡 URL de conexión: ${wsUrl}`, "info");
             socket = new WebSocket(wsUrl);
 
             socket.onopen = function () {
                document.getElementById("connectionStatus").className = "status-indicator online";
                document.getElementById("connectionText").textContent = "Conectado al sistema";
-               addLogEntry("✅ Conexión WebSocket establecida correctamente", "success");
-               addLogEntry("📊 Solicitando estado inicial del sistema...", "info");
+               addLogEntry("✅ Conexión WebSocket admin establecida correctamente", "success");
+               addLogEntry("🛠️ Panel de administración conectado - esperando datos iniciales...", "info");
 
                if (reconnectInterval) {
                   clearInterval(reconnectInterval);
                   reconnectInterval = null;
                }
+
+               // Reset counters
+               logCounter = 0;
+               dataUpdateCounter = 0;
+               lastLogTime = 0;
             };
 
             socket.onmessage = function (event) {
                const data = JSON.parse(event.data);
+               const currentTime = Date.now();
                logCounter++;
+
+               console.log("🔍 Admin recibió:", data.type, data); // NUEVO: Debug en consola
 
                if (data.type === "system_update") {
                   updateSystemDisplay(data);
-                  if (logCounter % 5 === 0) { // Solo log cada 5 actualizaciones para evitar spam
-                     if (data.latest_reading) {
-                        addLogEntry(`📈 Nuevos datos: T=${data.latest_reading.T}NTU, pH=${data.latest_reading.PH}, C=${data.latest_reading.C}μS/cm (${data.latest_reading.source})`, "data");
+                  dataUpdateCounter++;
+
+                  // CORREGIDO: Logging más inteligente y frecuente
+                  if (data.latest_reading) {
+                     const timeSinceLastLog = currentTime - lastLogTime;
+
+                     // Log inmediato si es la primera vez o han pasado más de 3 segundos
+                     if (lastLogTime === 0 || timeSinceLastLog > 3000) {
+                        addLogEntry(
+                           `📈 Nuevos datos: T=${data.latest_reading.T}NTU, pH=${data.latest_reading.PH}, C=${data.latest_reading.C}μS/cm (${data.latest_reading.source})`,
+                           "data"
+                        );
+                        lastLogTime = currentTime;
+                     }
+                     // Log cada 10 actualizaciones si han pasado al menos 1 segundo
+                     else if (dataUpdateCounter % 10 === 0 && timeSinceLastLog > 1000) {
+                        addLogEntry(
+                           `📊 Actualizaciones continuas: ${dataUpdateCounter} datos recibidos (última: T=${data.latest_reading.T}, pH=${data.latest_reading.PH}, C=${data.latest_reading.C})`,
+                           "heartbeat"
+                        );
+                        lastLogTime = currentTime;
                      }
                   }
                } else if (data.type === "system_status") {
                   updateSystemDisplay(data);
                   addLogEntry("🏠 Estado inicial del sistema cargado", "success");
+                  addLogEntry(`📊 Total readings: ${data.stats ? data.stats.total_readings : "N/A"}`, "info");
                   if (data.config && data.config.use_mock_data !== undefined) {
-                     addLogEntry(`🎛️ Sistema funcionando en modo: ${data.config.use_mock_data ? 'SIMULADO' : 'ARDUINO REAL'}`, "info");
+                     addLogEntry(
+                        `🎛️ Sistema funcionando en modo: ${data.config.use_mock_data ? "SIMULADO" : "ARDUINO REAL"}`,
+                        "info"
+                     );
                   }
                } else if (data.type === "command_response") {
                   addLogEntry(`✅ Comando ejecutado exitosamente: ${data.message}`, "success");
                   if (data.command === "set_mock_mode") {
                      updateModeButtons(data.new_value);
-                     addLogEntry(`🔧 Modo de operación cambiado a: ${data.new_value ? 'DATOS SIMULADOS' : 'DATOS REALES DEL ARDUINO'}`, "command");
+                     addLogEntry(
+                        `🔧 Modo de operación cambiado a: ${
+                           data.new_value ? "DATOS SIMULADOS" : "DATOS REALES DEL ARDUINO"
+                        }`,
+                        "command"
+                     );
                   }
                } else if (data.type === "error") {
                   addLogEntry(`❌ Error del sistema: ${data.message}`, "error");
@@ -368,27 +407,30 @@
             socket.onclose = function (event) {
                document.getElementById("connectionStatus").className = "status-indicator offline";
                document.getElementById("connectionText").textContent = "Desconectado - Reconectando...";
-               addLogEntry(`🔴 Conexión WebSocket cerrada (código: ${event.code}). Iniciando reconexión automática...`, "warning");
+               addLogEntry(
+                  `🔴 Conexión WebSocket cerrada (código: ${event.code}). Iniciando reconexión automática...`,
+                  "warning"
+               );
 
                if (!reconnectInterval) {
                   reconnectInterval = setInterval(() => {
-                     addLogEntry("🔄 Reintentando conexión...", "info");
+                     addLogEntry("🔄 Reintentando conexión admin...", "info");
                      connectWebSocket();
                   }, 3000);
                }
             };
 
             socket.onerror = function (error) {
-               addLogEntry("💥 Error crítico en la conexión WebSocket", "error");
+               addLogEntry("💥 Error crítico en la conexión WebSocket admin", "error");
+               console.error("WebSocket error:", error);
             };
          }
-
          function updateSystemDisplay(data) {
             // Actualizar estadísticas
             if (data.stats) {
                const prevClients = parseInt(document.getElementById("connectedClients").textContent) || 0;
                const newClients = data.stats.connected_clients;
-               
+
                document.getElementById("totalReadings").textContent = data.stats.total_readings;
                document.getElementById("arduinoReadings").textContent = data.stats.arduino_readings;
                document.getElementById("mockReadings").textContent = data.stats.mock_readings;
@@ -414,10 +456,10 @@
                document.getElementById("currentTurbidity").textContent = data.latest_reading.T;
                document.getElementById("currentPH").textContent = data.latest_reading.PH;
                document.getElementById("currentConductivity").textContent = data.latest_reading.C;
-               
+
                // Mostrar fuente de datos con emoji
-               const sourceEmoji = data.latest_reading.source === 'arduino' ? '📡' : '🎭';
-               const sourceText = data.latest_reading.source === 'arduino' ? 'Arduino Real' : 'Simulado';
+               const sourceEmoji = data.latest_reading.source === "arduino" ? "📡" : "🎭";
+               const sourceText = data.latest_reading.source === "arduino" ? "Arduino Real" : "Simulado";
                document.getElementById("dataSource").textContent = `${sourceEmoji} ${sourceText}`;
 
                if (data.latest_reading.timestamp) {
@@ -425,13 +467,11 @@
                   document.getElementById("lastUpdate").textContent = updateTime.toLocaleTimeString();
                }
             }
-
             // Actualizar modo
             if (data.config) {
                updateModeButtons(data.config.use_mock_data);
             }
          }
-
          function updateModeButtons(useMockData) {
             const mockBtn = document.getElementById("mockBtn");
             const realBtn = document.getElementById("realBtn");
@@ -455,7 +495,7 @@
                   value: useMock,
                };
                socket.send(JSON.stringify(command));
-               addLogEntry(`🎛️ Enviando comando para cambiar a modo ${useMock ? 'simulado' : 'real'}...`, "command");
+               addLogEntry(`🎛️ Enviando comando para cambiar a modo ${useMock ? "simulado" : "real"}...`, "command");
             } else {
                addLogEntry("❌ No hay conexión al sistema. No se puede cambiar el modo.", "error");
             }

@@ -214,20 +214,23 @@ class DistributedSystemMonitor:
     async def record_connection(self, websocket: WebSocket, client_type: str):
         """CORREGIDO: Registra una nueva conexión con categorización apropiada"""
         connection_id = self.generate_connection_id(websocket, client_type)
-        
+
         # CORREGIDO: Categorizar conexiones apropiadamente
         if client_type == "monitor":
             # Cliente del dashboard de agua (SÍ cuenta como cliente web)
             self.connection_registry["water_monitor_clients"].add(connection_id)
+            logger.info(f"👥 Cliente dashboard conectado: {connection_id[:8]}")
         elif client_type == "admin":
             # Cliente del panel admin (SÍ cuenta como cliente web)
             self.connection_registry["admin_clients"].add(connection_id)
+            logger.info(f"🛠️ Cliente admin conectado: {connection_id[:8]}")
         elif client_type == "system_monitor":
             # Monitor de sistema (NO cuenta como cliente web)
             self.connection_registry["system_monitor_clients"].add(connection_id)
+            logger.info(f"🔍 Monitor de sistema conectado: {connection_id[:8]}")
         else:
             logger.warning(f"⚠️ Tipo de cliente desconocido: {client_type}")
-            
+
         # Registrar evento con información detallada
         web_client_count = self.get_web_client_count()
         await self.record_event(SystemEvent(
@@ -238,16 +241,21 @@ class DistributedSystemMonitor:
                 "client_type": client_type,
                 "connection_id": connection_id,
                 "client_ip": getattr(websocket.client, 'host', 'unknown') if websocket.client else 'unknown',
-                "total_web_connections": web_client_count,  # CORREGIDO: Solo clientes web
-                "is_web_client": client_type in ["monitor", "admin"],  # NUEVO: Flag para identificar
-                "breakdown": {  # NUEVO: Desglose detallado
+                "total_web_connections": web_client_count,
+                "is_web_client": client_type in ["monitor", "admin"],
+                "breakdown": {
                     "dashboard_clients": len(self.connection_registry["water_monitor_clients"]),
                     "admin_clients": len(self.connection_registry["admin_clients"]),
                     "system_monitor_clients": len(self.connection_registry["system_monitor_clients"])
+                },
+                "topology_update": {
+                    "node_type": "admin_node" if client_type == "admin" else "client_node" if client_type == "monitor" else "monitor_node",
+                    "should_activate": True,
+                    "connection_line": "serverToAdmin" if client_type == "admin" else "serverToClient" if client_type == "monitor" else "serverToMonitor"
                 }
             }
         ))
-        
+
         return connection_id
     
     async def record_disconnection(self, connection_id: str, client_type: str, duration_ms: float = 0.0):
@@ -380,7 +388,7 @@ class DistributedSystemMonitor:
         """Envía métricas a todos los clientes del sistema de monitoreo"""
         if not self.monitor_clients:
             return
-        
+
         metrics_data = {
             "type": "system_metrics",
             "metrics": metrics.to_dict(),
@@ -391,8 +399,15 @@ class DistributedSystemMonitor:
                 "water_monitor_clients": len(self.connection_registry["water_monitor_clients"]),
                 "admin_clients": len(self.connection_registry["admin_clients"]),
                 "system_monitor_clients": len(self.connection_registry["system_monitor_clients"]),
-                "total_web_clients": self.get_web_client_count(),  # NUEVO: Total correcto
-                "last_arduino_ping": self.connection_registry["last_arduino_ping"].isoformat() if self.connection_registry["last_arduino_ping"] else None
+                "total_web_clients": self.get_web_client_count(),
+                "last_arduino_ping": self.connection_registry["last_arduino_ping"].isoformat() if self.connection_registry["last_arduino_ping"] else None,
+                # NUEVO: Información adicional para debugging de topología
+                "connection_breakdown": {
+                    "monitor_active": len(self.connection_registry["water_monitor_clients"]) > 0,
+                    "admin_active": len(self.connection_registry["admin_clients"]) > 0,
+                    "arduino_active": self.connection_registry["arduino_active"],
+                    "system_monitor_active": len(self.connection_registry["system_monitor_clients"]) > 0
+                }
             },
             "system_info": {
                 **self.system_info,
@@ -400,17 +415,23 @@ class DistributedSystemMonitor:
                 "uptime_seconds": (datetime.now() - self.system_info["start_time"]).total_seconds()
             }
         }
-        
+
         disconnected_clients = []
         for client in self.monitor_clients:
             try:
                 await client.send_json(metrics_data)
             except Exception:
                 disconnected_clients.append(client)
-        
+
         # Limpiar clientes desconectados
         for client in disconnected_clients:
             self.monitor_clients.remove(client)
+
+        # NUEVO: Log periódico para debugging (cada 30 segundos)
+        current_time = datetime.now()
+        if not hasattr(self, '_last_debug_log') or (current_time - self._last_debug_log).total_seconds() > 30:
+            self._last_debug_log = current_time
+            logger.debug(f"📊 Estado de conexiones: Monitor={len(self.connection_registry['water_monitor_clients'])}, Admin={len(self.connection_registry['admin_clients'])}, Arduino={'✅' if self.connection_registry['arduino_active'] else '❌'}")
     
     def add_monitor_client(self, websocket: WebSocket):
         """Registra un nuevo cliente de monitoreo del sistema (NO es cliente web)"""

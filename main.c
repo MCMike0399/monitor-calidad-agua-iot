@@ -14,28 +14,34 @@
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 
-// Definición de pines ADC
+// Definición de pines ADC (sin cambio)
 #define TURBIDITY_PIN A0
 #define PH_PIN A1
 #define CONDUCT_PIN A2
 
+// CORREGIDO: Configuración de conexión más robusta
 #define USE_KEEP_ALIVE true
-const unsigned long RECONNECT_INTERVAL = 60000; // 1 minute
+const unsigned long RECONNECT_INTERVAL = 120000; // 2 minutos
 unsigned long lastConnectionTime = 0;
 bool isConnected = false;
 
-// *** ACTUALIZADO: Configuración del servidor Python ***
-const char *server_host = "18.100.40.23";  // Nueva IP del servidor
-const int server_port = 8000;              // Puerto del servidor Python
-const char *server_path = "/water-monitor/publish";  // Endpoint correcto
+// *** CONFIGURACIÓN DEL SERVIDOR  ***
+const char *server_host = "18.101.239.100";
+const int server_port = 8000;
+const char *server_path = "/water-monitor/publish";
 
-// Intervalo de actualización (milisegundos)
-const unsigned long UPDATE_INTERVAL = 1000;
+// CORREGIDO: Intervalo de actualización más conservador para pruebas
+const unsigned long UPDATE_INTERVAL = 1000; // Mantener 1 segundo pero con mejor manejo
 
-// Cliente WiFi
+// NUEVA: Variables para monitoreo de conexión
+unsigned long lastSuccessfulSend = 0;
+int consecutiveTimeouts = 0;
+const int MAX_CONSECUTIVE_TIMEOUTS = 3; // Después de 3 timeouts, reconectar
+
+// Cliente WiFi (sin cambio)
 WiFiClient client;
 
-// Variables globales
+// Variables globales (sin cambio)
 unsigned long lastUpdateTime = 0;
 int status = WL_IDLE_STATUS;
 
@@ -72,36 +78,87 @@ void setup()
     conectar_wifi();
 }
 
+// FUNCIÓN LOOP MEJORADA en main.c
+// Reemplazar la función loop existente con esta versión
+
 void loop()
 {
-    // Verificar conexión WiFi
+    // Verificar conexión WiFi periódicamente
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial.println("⚠️ Reconectando a WiFi...");
+        Serial.println("⚠️ Conexión WiFi perdida - Reconectando...");
         conectar_wifi();
+        
+        // Reset estado de conexión HTTP
+        isConnected = false;
+        if (client.connected()) {
+            client.stop();
+        }
+        
+        return; // Salir temprano si no hay WiFi
+    }
+
+    // NUEVO: Verificar estado de salud de la conexión HTTP
+    unsigned long currentTime = millis();
+    
+    // Si han pasado muchos timeouts consecutivos, forzar reconexión
+    if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) {
+        Serial.println("🔄 Demasiados timeouts - forzando reconexión completa...");
+        
+        if (client.connected()) {
+            client.stop();
+        }
+        isConnected = false;
+        consecutiveTimeouts = 0;
+        lastConnectionTime = 0; // Forzar nueva conexión
+        
+        // Pausa breve antes de reintentar
+        delay(2000);
         return;
     }
 
-    // Check server connection periodically
+    // CORREGIDO: Manejo de keep-alive más inteligente
     if (USE_KEEP_ALIVE && isConnected)
     {
-        unsigned long currentTime = millis();
-        if (currentTime - lastConnectionTime >= RECONNECT_INTERVAL)
-        {
+        // Verificar si la conexión sigue activa
+        if (!client.connected()) {
+            Serial.println("🔌 Conexión keep-alive perdida - marcando para reconexión");
+            isConnected = false;
+            lastConnectionTime = currentTime;
+        }
+        // Renovar conexión periódicamente para evitar timeouts del servidor
+        else if (currentTime - lastConnectionTime >= RECONNECT_INTERVAL) {
+            Serial.println("🔄 Renovando conexión keep-alive periódicamente...");
             client.stop();
             isConnected = false;
             lastConnectionTime = currentTime;
-            Serial.println("🔄 Renovando conexión keep-alive...");
         }
     }
 
     // Verificar si es tiempo de enviar una actualización
-    unsigned long currentTime = millis();
     if (currentTime - lastUpdateTime >= UPDATE_INTERVAL)
     {
         lastUpdateTime = currentTime;
+        
+        // NUEVO: Monitoreo de salud de conexión
+        unsigned long timeSinceLastSuccess = currentTime - lastSuccessfulSend;
+        
+        // Advertencia si hace mucho que no se envía exitosamente
+        if (lastSuccessfulSend > 0 && timeSinceLastSuccess > 30000) { // 30 segundos
+            static unsigned long lastWarning = 0;
+            if (currentTime - lastWarning > 60000) { // Advertir cada minuto
+                lastWarning = currentTime;
+                Serial.print("⚠️ Sin envío exitoso por ");
+                Serial.print(timeSinceLastSuccess / 1000);
+                Serial.println(" segundos");
+            }
+        }
+        
         enviar_datos_sensores();
     }
+    
+    // NUEVO: Pequeña pausa para no saturar el CPU
+    delay(10);
 }
 
 void conectar_wifi()
@@ -153,6 +210,9 @@ void conectar_wifi()
     Serial.println(server_port);
 }
 
+// FUNCIÓN CORREGIDA en main.c
+// Reemplazar la función enviar_datos_sensores con esta versión optimizada
+
 void enviar_datos_sensores()
 {
     // Leer sensores
@@ -181,40 +241,73 @@ void enviar_datos_sensores()
 
     // Crear JSON con formato exacto esperado por el servidor Python
     StaticJsonDocument<200> doc;
-    doc["T"] = round(turbidez * 100) / 100.0;    // Turbidez con 2 decimales
-    doc["PH"] = round(ph * 100) / 100.0;         // pH con 2 decimales  
-    doc["C"] = round(salinidad * 100) / 100.0;   // Conductividad con 2 decimales
+    doc["T"] = round(turbidez * 100) / 100.0;  // Turbidez con 2 decimales
+    doc["PH"] = round(ph * 100) / 100.0;       // pH con 2 decimales
+    doc["C"] = round(salinidad * 100) / 100.0; // Conductividad con 2 decimales
 
     String json;
     serializeJson(doc, json);
 
-    // Gestionar conexión al servidor
-    if (!isConnected)
+    // CORREGIDO: Gestión de conexión más robusta
+    bool connection_success = false;
+
+    // Si no hay conexión activa o ha pasado tiempo desde la última conexión
+    if (!isConnected || (millis() - lastConnectionTime) > RECONNECT_INTERVAL)
     {
-        Serial.print("🔗 Conectando al servidor ");
+        // Cerrar conexión anterior si existe
+        if (client.connected())
+        {
+            client.stop();
+        }
+        isConnected = false;
+
+        Serial.print("🔗 (Re)conectando al servidor ");
         Serial.print(server_host);
         Serial.print(":");
         Serial.print(server_port);
         Serial.print("... ");
-        
-        if (!client.connect(server_host, server_port))
+
+        // CORREGIDO: Timeout más generoso para conexión inicial
+        unsigned long connect_start = millis();
+        while (!client.connect(server_host, server_port) && (millis() - connect_start) < 5000)
         {
-            Serial.println("❌ FALLO");
+            delay(100); // Pequeña pausa entre intentos
+        }
+
+        if (client.connected())
+        {
+            isConnected = true;
+            connection_success = true;
+            lastConnectionTime = millis();
+            Serial.println("✅ CONECTADO");
+        }
+        else
+        {
+            Serial.println("❌ FALLO DE CONEXIÓN");
             Serial.println("💡 Verificar que el servidor Python esté ejecutándose");
             return;
         }
-        isConnected = true;
-        Serial.println("✅ CONECTADO");
-        Serial.println("📡 Conexión keep-alive establecida");
+    }
+    else
+    {
+        connection_success = client.connected();
     }
 
-    // Construir petición HTTP POST optimizada
+    if (!connection_success)
+    {
+        Serial.println("❌ Sin conexión válida al servidor");
+        isConnected = false;
+        return;
+    }
+
+    // CORREGIDO: Construir petición HTTP optimizada con headers mejorados
     client.print("POST ");
     client.print(server_path);
     client.println(" HTTP/1.1");
     client.print("Host: ");
     client.println(server_host);
-    client.println(USE_KEEP_ALIVE ? "Connection: keep-alive" : "Connection: close");
+    client.println("User-Agent: Arduino-UnoR4WiFi/1.0");
+    client.println("Connection: keep-alive");
     client.println("Content-Type: application/json");
     client.print("Content-Length: ");
     client.println(json.length());
@@ -222,24 +315,42 @@ void enviar_datos_sensores()
     client.print(json);
     client.flush(); // Forzar transmisión de datos
 
-    // Procesamiento mínimo de respuesta para mejor performance
-    unsigned long timeout = millis();
+    // CORREGIDO: Procesamiento de respuesta más robusto con timeout extendido
+    unsigned long timeout_start = millis();
     bool headerEnded = false;
     bool responseReceived = false;
+    String statusLine = "";
+    int responseCode = 0;
 
-    while (client.connected() && (millis() - timeout < 2000)) // 2 segundos timeout
+    // CORREGIDO: Timeout aumentado a 5 segundos para respuesta
+    while (client.connected() && (millis() - timeout_start < 5000))
     {
         if (client.available())
         {
             String line = client.readStringUntil('\n');
-            
-            // Buscar código de respuesta HTTP
-            if (line.startsWith("HTTP/1.1"))
+            line.trim(); // Remover espacios y \r
+
+            // Leer la primera línea para obtener el status code
+            if (line.startsWith("HTTP/1.1") && statusLine.isEmpty())
             {
+                statusLine = line;
                 responseReceived = true;
-                if (line.indexOf("200") > 0)
+
+                // Extraer código de respuesta
+                int spaceIndex = line.indexOf(' ');
+                if (spaceIndex > 0)
                 {
-                    // Solo mostrar confirmación cada 30 segundos
+                    int secondSpaceIndex = line.indexOf(' ', spaceIndex + 1);
+                    if (secondSpaceIndex > 0)
+                    {
+                        responseCode = line.substring(spaceIndex + 1, secondSpaceIndex).toInt();
+                    }
+                }
+
+                // Log basado en código de respuesta
+                if (responseCode == 200)
+                {
+                    // Solo mostrar confirmación cada 30 segundos para requests exitosos
                     static unsigned long lastSuccessLog = 0;
                     if (millis() - lastSuccessLog > 30000)
                     {
@@ -247,45 +358,123 @@ void enviar_datos_sensores()
                         Serial.println("✅ Datos enviados exitosamente al servidor Python");
                     }
                 }
-                else if (line.indexOf("400") > 0)
+                else if (responseCode == 202)
                 {
-                    Serial.println("❌ Error 400: Datos inválidos enviados al servidor");
+                    static unsigned long lastMockLog = 0;
+                    if (millis() - lastMockLog > 60000)
+                    { // Log cada minuto en modo mock
+                        lastMockLog = millis();
+                        Serial.println("🎭 Servidor en modo simulado - datos del Arduino ignorados");
+                    }
                 }
-                else if (line.indexOf("500") > 0)
+                else if (responseCode >= 400)
                 {
-                    Serial.println("❌ Error 500: Error interno del servidor Python");
+                    Serial.print("❌ Error del servidor: ");
+                    Serial.println(responseCode);
                 }
             }
-            
-            // Detectar fin de headers
-            if (line == "\r")
+
+            // Detectar fin de headers HTTP
+            if (line.length() == 0)
             {
                 headerEnded = true;
-                break;
+                break; // No necesitamos leer el body para este caso
             }
         }
+
+        // CORREGIDO: Pequeña pausa para no saturar el CPU
+        delay(1);
     }
 
+    // CORREGIDO: Verificación de timeout más detallada
     if (!responseReceived)
     {
-        Serial.println("⚠️ No se recibió respuesta del servidor (timeout)");
-    }
+        unsigned long elapsed = millis() - timeout_start;
+        Serial.print("⚠️ No se recibió respuesta del servidor (timeout ");
+        Serial.print(elapsed);
+        Serial.println("ms)");
 
-    // Limpiar cualquier dato restante en el buffer
-    while (client.available())
-    {
-        client.read();
-    }
-
-    // Manejar conexión basado en configuración keep-alive
-    if (!USE_KEEP_ALIVE)
-    {
-        client.stop();
-        isConnected = false;
+        // Si el timeout es muy largo, probablemente hay un problema de red
+        if (elapsed >= 4000)
+        {
+            Serial.println("🔌 Timeout muy largo - cerrando conexión para reintentar");
+            client.stop();
+            isConnected = false;
+        }
     }
     else
     {
+        // Actualizar tiempo de última comunicación exitosa
         lastConnectionTime = millis();
+    }
+
+    // CORREGIDO: Limpiar buffer de manera más eficiente
+    int bytesCleared = 0;
+    while (client.available() && bytesCleared < 512)
+    { // Límite para evitar bucle infinito
+        client.read();
+        bytesCleared++;
+    }
+
+    // CORREGIDO: Manejo de keep-alive mejorado
+    if (USE_KEEP_ALIVE)
+    {
+        // Verificar que la conexión sigue activa
+        if (!client.connected())
+        {
+            Serial.println("🔌 Conexión perdida - marcando para reconexión");
+            isConnected = false;
+        }
+        else
+        {
+            // Actualizar tiempo de última actividad
+            lastConnectionTime = millis();
+        }
+    }
+    else
+    {
+        // Sin keep-alive, cerrar conexión
+        client.stop();
+        isConnected = false;
+    }
+    // contadores de exito y errores basado en el resultado
+    if (responseReceived && responseCode == 200) {
+        // Envío exitoso
+        lastSuccessfulSend = millis();
+        consecutiveTimeouts = 0; // Reset contador de timeouts
+        
+        // Log de debug cada 5 minutos para mostrar estadísticas
+        static unsigned long lastStatsLog = 0;
+        if (millis() - lastStatsLog > 300000) { // 5 minutos
+            lastStatsLog = millis();
+            Serial.println("📈 Estadísticas de conexión:");
+            Serial.print("   ✅ Último envío exitoso: hace ");
+            Serial.print((millis() - lastSuccessfulSend) / 1000);
+            Serial.println(" segundos");
+            Serial.print("   🔗 Conexión keep-alive: ");
+            Serial.println(isConnected ? "ACTIVA" : "INACTIVA");
+            Serial.print("   📡 Estado WiFi: ");
+            Serial.println(WiFi.status() == WL_CONNECTED ? "CONECTADO" : "DESCONECTADO");
+        }
+    } else if (!responseReceived) {
+        // Timeout ocurrido
+        consecutiveTimeouts++;
+        Serial.print("⚠️ Timeout #");
+        Serial.print(consecutiveTimeouts);
+        Serial.print(" de ");
+        Serial.println(MAX_CONSECUTIVE_TIMEOUTS);
+        
+        if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) {
+            Serial.println("🚨 Demasiados timeouts - se forzará reconexión en próximo ciclo");
+        }
+    } else if (responseCode >= 400) {
+        // Error del servidor - no contar como timeout pero sí como problema
+        Serial.print("🚨 Error del servidor ");
+        Serial.print(responseCode);
+        Serial.println(" - no es problema de timeout");
+        
+        // Reset timeouts ya que el servidor sí respondió
+        consecutiveTimeouts = 0;
     }
 }
 
@@ -307,7 +496,7 @@ uint16_t leer_adc(uint8_t pin)
 // Función para convertir valor raw de turbidez (invertido para simular sensor real)
 float convertir_turbidez(uint16_t raw)
 {
-    // Simula un sensor de turbidez donde 0V = agua muy turbia, 3.3V = agua clara
+    // Simula un sensor de turbidez donde 0V = agua muy turbia, 5.0V = agua clara
     return 1000.0 * (1.0 - (float)raw / 4095.0);
 }
 

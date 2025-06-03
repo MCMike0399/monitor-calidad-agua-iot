@@ -507,7 +507,7 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                 "use_mock_data": water_state.use_mock_data,
                 "connected_monitor_clients": len(water_state.monitor_clients),
                 "connected_admin_clients": len(water_state.admin_clients),
-                "total_web_clients": water_state.get_web_client_count()  # NUEVO
+                "total_web_clients": water_state.get_web_client_count()
             },
             "latest_reading": water_state.latest_reading.to_dict(),
             "stats": {
@@ -517,7 +517,7 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                     water_state.stats["last_arduino_connection"].isoformat() 
                     if water_state.stats["last_arduino_connection"] else None
                 ),
-                "connected_clients": water_state.get_web_client_count()  # CORREGIDO
+                "connected_clients": water_state.get_web_client_count()
             }
         }
         await websocket.send_json(initial_status)
@@ -525,17 +525,19 @@ async def admin_websocket_endpoint(websocket: WebSocket):
         logger.info(f"🛠️ Cliente admin conectado y estado inicial enviado (conexión: {connection_id[:8]})")
         logger.info(f"📈 Estado actual: Admin clients: {len(water_state.admin_clients)}, Total web clients: {water_state.get_web_client_count()}")
         
-        # Registrar conexión admin
+        # CORREGIDO: Registrar conexión admin con información más detallada
         await system_monitor.record_event(SystemEvent(
             event_type=EventType.CONNECTION,
             timestamp=datetime.now(),
-            source="admin_websocket",
+            source="admin_websocket",  # Source consistente
             details={
                 "client_type": "admin_panel",
                 "protocol": "WebSocket",
                 "explanation": "Panel admin usa WebSocket para control bidireccional del sistema",
                 "connection_id": connection_id,
-                "total_web_clients": water_state.get_web_client_count()  # NUEVO
+                "total_web_clients": water_state.get_web_client_count(),
+                "admin_clients": len(water_state.admin_clients),
+                "monitor_clients": len(water_state.monitor_clients)
             }
         ))
         
@@ -572,7 +574,8 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                             "command": "set_mock_mode",
                             "old_mode": "mock" if old_mode else "arduino",
                             "new_mode": "mock" if new_mode else "arduino",
-                            "explanation": f"Sistema cambiado a modo {'simulado' if new_mode else 'real'} desde panel admin"
+                            "explanation": f"Sistema cambiado a modo {'simulado' if new_mode else 'real'} desde panel admin",
+                            "admin_connection_id": connection_id
                         }
                     ))
                 
@@ -586,7 +589,7 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                                 water_state.stats["last_arduino_connection"].isoformat() 
                                 if water_state.stats["last_arduino_connection"] else None
                             ),
-                            "connected_clients": water_state.get_web_client_count()  # CORREGIDO
+                            "connected_clients": water_state.get_web_client_count()
                         }
                     }
                     await websocket.send_json(stats_response)
@@ -615,16 +618,19 @@ async def admin_websocket_endpoint(websocket: WebSocket):
         water_state.remove_admin_client(websocket)
         
         duration = (time.time() - connection_start_time) * 1000
+        # CORREGIDO: Registrar desconexión admin con información detallada
         await system_monitor.record_event(SystemEvent(
             event_type=EventType.DISCONNECTION,
             timestamp=datetime.now(),
-            source="admin_websocket",
+            source="admin_websocket",  # Source consistente
             details={
                 "client_type": "admin_panel",
                 "reason": "websocket_closed",
                 "session_duration_ms": duration,
                 "connection_id": connection_id,
-                "remaining_web_clients": water_state.get_web_client_count()  # NUEVO
+                "remaining_web_clients": water_state.get_web_client_count(),
+                "remaining_admin_clients": len(water_state.admin_clients),
+                "remaining_monitor_clients": len(water_state.monitor_clients)
             },
             duration_ms=duration
         ))

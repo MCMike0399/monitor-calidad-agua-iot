@@ -178,11 +178,11 @@
          /* NUEVO LAYOUT PARA TOPOLOGÍA - Sin solapamiento */
          .topology-container {
             display: grid;
-            grid-template-columns: 1fr 300px;  /* Topología + Panel lateral */
+            grid-template-columns: 1fr 300px; /* Topología + Panel lateral */
             gap: 20px;
             height: 600px;
          }
-         
+
          .topology-visual {
             background: #0f0f23;
             border-radius: 8px;
@@ -191,13 +191,13 @@
             overflow: hidden;
             min-height: 600px;
          }
-         
+
          .topology-sidebar {
             display: flex;
             flex-direction: column;
             gap: 15px;
          }
-         
+
          .info-card {
             background: #1a1a2e;
             border-radius: 8px;
@@ -205,7 +205,7 @@
             border: 1px solid #333;
             flex: 1;
          }
-         
+
          .info-card h4 {
             color: #4ade80;
             margin-bottom: 10px;
@@ -237,8 +237,13 @@
             animation: nodeGlow 2s infinite;
          }
          @keyframes nodeGlow {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            0%,
+            100% {
+               transform: scale(1);
+            }
+            50% {
+               transform: scale(1.05);
+            }
          }
 
          /* Posiciones optimizadas para evitar solapamiento */
@@ -290,9 +295,15 @@
             animation: dataFlow 2s infinite;
          }
          @keyframes dataFlow {
-            0% { box-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
-            100% { box-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+            0% {
+               box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            }
+            50% {
+               box-shadow: 0 0 20px rgba(74, 222, 128, 0.8);
+            }
+            100% {
+               box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            }
          }
 
          .connection-counter {
@@ -362,42 +373,57 @@
          <!-- TOPOLOGÍA REORGANIZADA - Sin solapamiento -->
          <div class="card grid-full">
             <h3>🌐 Topología del Sistema Distribuido IoT</h3>
-            <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">
-               Visualización en tiempo real de las comunicaciones entre Arduino, servidor FastAPI y clientes web.
-               Los nodos activos brillan y las líneas muestran flujo de datos activo.
+            <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px">
+               Visualización en tiempo real de las comunicaciones entre Arduino, servidor FastAPI y clientes web. Los
+               nodos activos brillan y las líneas muestran flujo de datos activo.
             </p>
-            
+
             <div class="topology-container">
                <!-- Área visual de la topología -->
                <div class="topology-visual" id="networkTopology">
                   <!-- Nodos del sistema -->
-                  <div class="node arduino-node" id="arduinoNode" 
-                       title="Arduino Uno R4 WiFi - Dispositivo IoT"
-                       onclick="showNodeInfo('arduino')">
+                  <div
+                     class="node arduino-node"
+                     id="arduinoNode"
+                     title="Arduino Uno R4 WiFi - Dispositivo IoT"
+                     onclick="showNodeInfo('arduino')"
+                  >
                      Arduino<br />📡 IoT
                   </div>
-                  
-                  <div class="node server-node active" id="serverNode" 
-                       title="Servidor FastAPI - Núcleo del Sistema"
-                       onclick="showNodeInfo('server')">
+
+                  <div
+                     class="node server-node active"
+                     id="serverNode"
+                     title="Servidor FastAPI - Núcleo del Sistema"
+                     onclick="showNodeInfo('server')"
+                  >
                      FastAPI<br />🖥️ Server
                   </div>
-                  
-                  <div class="node client-node" id="clientNode" 
-                       title="Cliente Web - Dashboard de Monitoreo"
-                       onclick="showNodeInfo('client')">
+
+                  <div
+                     class="node client-node"
+                     id="clientNode"
+                     title="Cliente Web - Dashboard de Monitoreo"
+                     onclick="showNodeInfo('client')"
+                  >
                      Web<br />🌊 Monitor
                   </div>
-                  
-                  <div class="node admin-node" id="adminNode" 
-                       title="Panel de Administración"
-                       onclick="showNodeInfo('admin')">
+
+                  <div
+                     class="node admin-node"
+                     id="adminNode"
+                     title="Panel de Administración"
+                     onclick="showNodeInfo('admin')"
+                  >
                      Admin<br />⚙️ Panel
                   </div>
-                  
-                  <div class="node monitor-node active" id="monitorNodeVis" 
-                       title="Monitor de Sistema - Observabilidad"
-                       onclick="showNodeInfo('monitor')">
+
+                  <div
+                     class="node monitor-node active"
+                     id="monitorNodeVis"
+                     title="Monitor de Sistema - Observabilidad"
+                     onclick="showNodeInfo('monitor')"
+                  >
                      System<br />🔍 Monitor
                   </div>
 
@@ -408,8 +434,8 @@
                   <div class="connection-line" id="serverToMonitor"></div>
 
                   <!-- Labels de protocolos -->
-                  <div class="protocol-label" id="httpLabel" style="display: none;">HTTP POST</div>
-                  <div class="protocol-label" id="wsLabel" style="display: none;">WebSocket</div>
+                  <div class="protocol-label" id="httpLabel" style="display: none">HTTP POST</div>
+                  <div class="protocol-label" id="wsLabel" style="display: none">WebSocket</div>
                </div>
 
                <!-- Panel lateral con información -->
@@ -438,9 +464,11 @@
                   <!-- Información del nodo seleccionado -->
                   <div class="info-card">
                      <h4>💡 Información del Componente</h4>
-                     <div id="nodeInfo" style="font-size: 11px; line-height: 1.4;">
-                        <div style="font-weight: bold; color: #4ade80; margin-bottom: 5px;">Sistema Distribuido IoT</div>
-                        <div>Haz clic en los nodos para aprender sobre cada componente y sus protocolos de comunicación.</div>
+                     <div id="nodeInfo" style="font-size: 11px; line-height: 1.4">
+                        <div style="font-weight: bold; color: #4ade80; margin-bottom: 5px">Sistema Distribuido IoT</div>
+                        <div>
+                           Haz clic en los nodos para aprender sobre cada componente y sus protocolos de comunicación.
+                        </div>
                      </div>
                   </div>
                </div>
@@ -479,16 +507,14 @@
          <!-- Log de Eventos -->
          <div class="card grid-full">
             <h3>📝 Log Educativo de Eventos del Sistema</h3>
-            <p style="font-size: 14px; opacity: 0.8; margin-bottom: 10px;">
-               Este log muestra en tiempo real todos los eventos de comunicación en el sistema distribuido, 
-               explicando qué protocolo se usa y por qué.
+            <p style="font-size: 14px; opacity: 0.8; margin-bottom: 10px">
+               Este log muestra en tiempo real todos los eventos de comunicación en el sistema distribuido, explicando
+               qué protocolo se usa y por qué.
             </p>
             <div class="controls">
                <button class="btn" onclick="clearEventLog()">🗑️ Limpiar Log</button>
                <button class="btn" onclick="requestFullHistory()">📜 Historial Completo</button>
-               <label style="color: #cccccc"> 
-                  <input type="checkbox" id="autoScroll" checked /> Auto-scroll 
-               </label>
+               <label style="color: #cccccc"> <input type="checkbox" id="autoScroll" checked /> Auto-scroll </label>
             </div>
             <div class="event-log" id="eventLog">
                <div class="event-item">
@@ -507,7 +533,7 @@
             arduino: false,
             monitorClients: 0,
             adminClients: 0,
-            eventsPerSecond: 0
+            eventsPerSecond: 0,
          };
 
          // Información educativa de cada nodo
@@ -523,7 +549,7 @@
                   • Reconexión automática<br/>
                   • Compatible con librerías estándar<br/>
                   <strong>Datos:</strong> Turbidez, pH, Conductividad cada 1 segundo
-               `
+               `,
             },
             server: {
                title: "🖥️ Servidor FastAPI - Núcleo del Sistema",
@@ -536,7 +562,7 @@
                   • Escalabilidad automática<br/>
                   • Tolerancia a fallos<br/>
                   <strong>Puerto:</strong> 8000 (HTTP) y WebSocket
-               `
+               `,
             },
             client: {
                title: "🌊 Cliente Web - Dashboard de Monitoreo",
@@ -549,7 +575,7 @@
                   • Push automático de datos<br/>
                   • Ideal para dashboards en tiempo real<br/>
                   <strong>Tecnologías:</strong> HTML5, JavaScript, Plotly.js
-               `
+               `,
             },
             admin: {
                title: "⚙️ Panel de Administración",
@@ -561,7 +587,7 @@
                   • Ver estadísticas del sistema<br/>
                   • Monitorear estado de conexiones<br/>
                   <strong>Seguridad:</strong> Comandos autenticados
-               `
+               `,
             },
             monitor: {
                title: "🔍 Monitor de Sistema - Observabilidad",
@@ -573,19 +599,19 @@
                   • Logging estructurado<br/>
                   • Visualización de topología<br/>
                   <strong>Valor educativo:</strong> Enseña debugging de sistemas distribuidos
-               `
-            }
+               `,
+            },
          };
 
          function showNodeInfo(nodeType) {
-            const nodeInfo = document.getElementById('nodeInfo');
+            const nodeInfo = document.getElementById("nodeInfo");
             const info = nodeInfoContent[nodeType];
-            
+
             nodeInfo.innerHTML = `
                <div style="font-weight: bold; color: #4ade80; margin-bottom: 8px;">${info.title}</div>
                <div style="line-height: 1.4;">${info.content}</div>
             `;
-            
+
             // addEventToLog("EDUCATIVO", `Información mostrada sobre: ${info.title}`, "info");
          }
 
@@ -599,7 +625,11 @@
             socket.onopen = function () {
                document.getElementById("connectionStatus").className = "status-indicator online";
                document.getElementById("connectionText").textContent = "Conectado al monitor";
-               addEventToLog("WEBSOCKET", "✅ Conexión WebSocket establecida. Protocolo: ws:// (desarrollo) / wss:// (producción)", "connection");
+               addEventToLog(
+                  "WEBSOCKET",
+                  "✅ Conexión WebSocket establecida. Protocolo: ws:// (desarrollo) / wss:// (producción)",
+                  "connection"
+               );
                // addEventToLog("EDUCATIVO", "💡 WebSocket permite comunicación bidireccional en tiempo real, ideal para monitoreo", "info");
                updateTopologyConnections();
             };
@@ -621,7 +651,11 @@
             socket.onclose = function (event) {
                document.getElementById("connectionStatus").className = "status-indicator offline";
                document.getElementById("connectionText").textContent = "Desconectado - Reconectando...";
-               addEventToLog("WEBSOCKET", `🔴 Conexión WebSocket cerrada (código ${event.code}). Reconectando automáticamente...`, "error");
+               addEventToLog(
+                  "WEBSOCKET",
+                  `🔴 Conexión WebSocket cerrada (código ${event.code}). Reconectando automáticamente...`,
+                  "error"
+               );
                setTimeout(connectWebSocket, 3000);
             };
 
@@ -641,81 +675,137 @@
             if (data.metrics_history) {
                data.metrics_history.forEach((metric) => updateCharts(metric));
             }
-            addEventToLog("SISTEMA", "📊 Estado inicial cargado. Sistema listo para monitoreo en tiempo real.", "connection");
+            addEventToLog(
+               "SISTEMA",
+               "📊 Estado inicial cargado. Sistema listo para monitoreo en tiempo real.",
+               "connection"
+            );
             updateTopologyConnections();
          }
 
          function handleSystemEvent(event) {
             const details = parseEventDetails(event);
             addEventToLog(event.source.toUpperCase(), details, event.event_type);
-            
+
             updateConnectionStatesFromEvent(event);
             updateTopologyConnections();
          }
 
          function parseEventDetails(event) {
             const details = event.details || {};
-            
-            switch(event.event_type) {
+
+            switch (event.event_type) {
                case "connection":
                   if (details.client_type === "system_monitor") {
                      return "🔗 Nuevo monitor conectado via WebSocket para observabilidad del sistema";
                   } else if (details.endpoint && details.endpoint.includes("monitor")) {
-                     return `👥 Cliente web conectado al dashboard de monitoreo (IP: ${details.client_ip || 'unknown'})`;
+                     return `👥 Cliente web conectado al dashboard de monitoreo (IP: ${
+                        details.client_ip || "unknown"
+                     })`;
                   } else if (details.endpoint && details.endpoint.includes("admin")) {
                      return "🛠️ Panel de administración conectado via WebSocket para control del sistema";
                   } else {
-                     return `🔗 Nueva conexión establecida desde ${details.client_ip || 'cliente'}`;
+                     return `🔗 Nueva conexión establecida desde ${details.client_ip || "cliente"}`;
                   }
-               
+
                case "disconnection":
-                  return `🔌 Cliente desconectado. Conexión duró ${event.duration_ms ? Math.round(event.duration_ms/1000) + 's' : 'N/A'}`;
-               
+                  return `🔌 Cliente desconectado. Conexión duró ${
+                     event.duration_ms ? Math.round(event.duration_ms / 1000) + "s" : "N/A"
+                  }`;
+
                case "data_received":
                   if (details.command) {
                      return `📨 Comando recibido: '${details.command}' (${details.bytes || 0} bytes)`;
                   } else {
                      return `📨 Datos recibidos del Arduino: ${details.bytes || 0} bytes via HTTP POST`;
                   }
-               
+
                case "data_sent":
                   return `📤 Datos enviados a clientes via WebSocket (${details.bytes || 0} bytes)`;
-               
+
                case "error":
-                  return `❌ Error: ${details.error || 'Error desconocido'} [${details.error_type || 'Unknown'}]`;
-               
+                  return `❌ Error: ${details.error || "Error desconocido"} [${details.error_type || "Unknown"}]`;
+
                default:
                   return JSON.stringify(details);
             }
          }
 
          function updateConnectionStatesFromEvent(event) {
+            console.log("🔍 Procesando evento:", event.event_type, "source:", event.source, "details:", event.details);
+
             if (event.event_type === "connection") {
-               if (event.source.includes("websocket_monitor_websocket")) {
+               // CORREGIDO: Detectar correctamente todas las formas de conexión admin
+               if (
+                  event.source.includes("websocket_monitor_websocket") ||
+                  event.source === "water_monitor_websocket" ||
+                  (event.details && event.details.client_type === "water_dashboard")
+               ) {
                   connectionStates.monitorClients++;
-                  // addEventToLog("EDUCATIVO", "💡 WebSocket usado para clientes web porque permite push automático de datos", "info");
-               } else if (event.source.includes("admin")) {
+                  console.log("✅ Monitor client conectado, total:", connectionStates.monitorClients);
+               } else if (
+                  event.source.includes("admin") ||
+                  event.source === "admin_websocket" ||
+                  event.source === "websocket_admin" ||
+                  (event.details && event.details.client_type === "admin_panel")
+               ) {
                   connectionStates.adminClients++;
+                  console.log("✅ Admin client conectado, total:", connectionStates.adminClients);
                }
             } else if (event.event_type === "disconnection") {
-               if (event.source.includes("websocket_monitor_websocket")) {
+               if (
+                  event.source.includes("websocket_monitor_websocket") ||
+                  event.source === "water_monitor_websocket" ||
+                  (event.details && event.details.client_type === "water_dashboard")
+               ) {
                   connectionStates.monitorClients = Math.max(0, connectionStates.monitorClients - 1);
-               } else if (event.source.includes("admin")) {
+                  console.log("🔌 Monitor client desconectado, quedan:", connectionStates.monitorClients);
+               } else if (
+                  event.source.includes("admin") ||
+                  event.source === "admin_websocket" ||
+                  event.source === "websocket_admin" ||
+                  (event.details && event.details.client_type === "admin_panel")
+               ) {
                   connectionStates.adminClients = Math.max(0, connectionStates.adminClients - 1);
+                  console.log("🔌 Admin client desconectado, quedan:", connectionStates.adminClients);
                }
             } else if (event.event_type === "data_received" && event.source === "arduino_data") {
                connectionStates.arduino = true;
-               addEventToLog("EDUCATIVO", "💡 Arduino usa HTTP POST porque es más eficiente en memoria que WebSocket", "info");
+               // Solo log educativo ocasional para no saturar
+               if (Math.random() < 0.1) {
+                  // 10% de probabilidad
+                  addEventToLog(
+                     "EDUCATIVO",
+                     "💡 Arduino usa HTTP POST porque es más eficiente en memoria que WebSocket",
+                     "info"
+                  );
+               }
             }
          }
 
          function handleSystemMetrics(data) {
             if (data.metrics) {
                connectionStates.eventsPerSecond = data.metrics.events_per_second || 0;
-               connectionStates.monitorClients = data.metrics.active_connections || 0;
+               if (data.connection_states) {
+                  connectionStates.monitorClients = data.connection_states.water_monitor_clients || 0;
+                  connectionStates.adminClients = data.connection_states.admin_clients || 0;
+                  connectionStates.arduino = data.connection_states.arduino_active || false;
+               } else {
+                  // Fallback usando active_connections si connection_states no está disponible
+                  connectionStates.monitorClients = data.metrics.active_connections || 0;
+               }
                updateCharts(data.metrics);
             }
             if (data.counters) updateCounters(data.counters);
+
+            // NUEVO: Log detallado para debugging
+            console.log("📊 Métricas recibidas:", {
+               eventsPerSecond: connectionStates.eventsPerSecond,
+               monitorClients: connectionStates.monitorClients,
+               adminClients: connectionStates.adminClients,
+               arduino: connectionStates.arduino,
+            });
+
             updateTopologyConnections();
          }
 
@@ -723,7 +813,9 @@
             document.getElementById("monitorClientCount").textContent = connectionStates.monitorClients;
             document.getElementById("adminClientCount").textContent = connectionStates.adminClients;
             document.getElementById("arduinoStatus").textContent = connectionStates.arduino ? "Online" : "Offline";
-            document.getElementById("arduinoStatus").className = connectionStates.arduino ? "active-counter" : "inactive-counter";
+            document.getElementById("arduinoStatus").className = connectionStates.arduino
+               ? "active-counter"
+               : "inactive-counter";
             document.getElementById("eventsPerSecond").textContent = connectionStates.eventsPerSecond;
 
             updateNodeState("arduinoNode", connectionStates.arduino);
@@ -787,17 +879,17 @@
 
          function drawConnectionLine(lineId, fromRect, toRect, containerRect) {
             const line = document.getElementById(lineId);
-            
+
             const fromX = fromRect.left - containerRect.left + fromRect.width / 2;
             const fromY = fromRect.top - containerRect.top + fromRect.height / 2;
             const toX = toRect.left - containerRect.left + toRect.width / 2;
             const toY = toRect.top - containerRect.top + toRect.height / 2;
-            
+
             const deltaX = toX - fromX;
             const deltaY = toY - fromY;
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
-            
+            const angle = (Math.atan2(deltaY, deltaX) * 180) / Math.PI;
+
             line.style.left = fromX + "px";
             line.style.top = fromY + "px";
             line.style.width = distance + "px";
@@ -842,7 +934,7 @@
                      name: "Conexiones Activas",
                      type: "scatter",
                      line: { color: "#4ade80" },
-                     yaxis: "y2"
+                     yaxis: "y2",
                   },
                ],
                {
@@ -851,18 +943,18 @@
                   font: { color: "#cccccc", size: 10 },
                   showlegend: true,
                   xaxis: { showgrid: false, color: "#666" },
-                  yaxis: { 
+                  yaxis: {
                      title: "CPU %",
-                     showgrid: true, 
-                     gridcolor: "#333", 
-                     range: [0, 100] 
+                     showgrid: true,
+                     gridcolor: "#333",
+                     range: [0, 100],
                   },
                   yaxis2: {
                      title: "Conexiones",
                      overlaying: "y",
                      side: "right",
-                     range: [0, Math.max(10, connectionStates.monitorClients + 2)]
-                  }
+                     range: [0, Math.max(10, connectionStates.monitorClients + 2)],
+                  },
                },
                { displayModeBar: false }
             );
@@ -879,13 +971,13 @@
                data_sent: "#8b5cf6",
                error: "#f87171",
                system_metric: "#fbbf24",
-               info: "#4ade80"
+               info: "#4ade80",
             };
 
             const eventItem = document.createElement("div");
             eventItem.className = "event-item";
             eventItem.style.borderLeftColor = eventTypeColors[eventType] || "#4ade80";
-            
+
             eventItem.innerHTML = `
                 <span class="event-time">${timestamp}</span>
                 <span class="event-source">${source}</span>
@@ -918,7 +1010,7 @@
          window.onload = function () {
             addEventToLog("SISTEMA", "🚀 Iniciando Monitor de Sistema Distribuido Educativo...", "info");
             // addEventToLog("EDUCATIVO", "💡 Este monitor enseña conceptos de sistemas distribuidos, WebSockets y comunicación IoT", "info");
-            
+
             connectWebSocket();
 
             Plotly.newPlot(
@@ -932,13 +1024,13 @@
                { displayModeBar: false }
             );
 
-            window.addEventListener('resize', () => {
+            window.addEventListener("resize", () => {
                setTimeout(calculateConnectionLines, 100);
             });
 
             setTimeout(() => {
                updateTopologyConnections();
-               showNodeInfo('server');
+               showNodeInfo("server");
             }, 500);
          };
       </script>
