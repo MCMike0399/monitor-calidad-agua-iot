@@ -1,5 +1,6 @@
 /*
     Arduino Uno R4 WiFi - Sensor HTTP Client
+    Actualizado para servidor Python en 18.100.40.23:8000
 
     Lee datos de sensores ADC (turbidez, pH, conductividad)
     y los envía a un servidor mediante peticiones HTTP POST.
@@ -23,10 +24,10 @@ const unsigned long RECONNECT_INTERVAL = 60000; // 1 minute
 unsigned long lastConnectionTime = 0;
 bool isConnected = false;
 
-// Configuración del servidor
-const char *server_host = "51.94.71.97";
-const int server_port = 8000;
-const char *server_path = "/water-monitor/publish";
+// *** ACTUALIZADO: Configuración del servidor Python ***
+const char *server_host = "18.100.40.23";  // Nueva IP del servidor
+const int server_port = 8000;              // Puerto del servidor Python
+const char *server_path = "/water-monitor/publish";  // Endpoint correcto
 
 // Intervalo de actualización (milisegundos)
 const unsigned long UPDATE_INTERVAL = 1000;
@@ -55,6 +56,15 @@ void setup()
         ; // Esperar a que el puerto serial se conecte
     }
 
+    Serial.println("=== Monitor de Agua IoT - Arduino Uno R4 WiFi ===");
+    Serial.print("Servidor destino: ");
+    Serial.print(server_host);
+    Serial.print(":");
+    Serial.println(server_port);
+    Serial.print("Endpoint: ");
+    Serial.println(server_path);
+    Serial.println("===============================================");
+
     // Configurar ADC para resolución de 12 bits
     analogReadResolution(12);
 
@@ -67,7 +77,7 @@ void loop()
     // Verificar conexión WiFi
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial.println("Reconectando a WiFi...");
+        Serial.println("⚠️ Reconectando a WiFi...");
         conectar_wifi();
         return;
     }
@@ -81,6 +91,7 @@ void loop()
             client.stop();
             isConnected = false;
             lastConnectionTime = currentTime;
+            Serial.println("🔄 Renovando conexión keep-alive...");
         }
     }
 
@@ -98,7 +109,7 @@ void conectar_wifi()
     // Verificar el módulo WiFi
     if (WiFi.status() == WL_NO_MODULE)
     {
-        Serial.println("¡Fallo en comunicación con módulo WiFi!");
+        Serial.println("❌ ¡Fallo en comunicación con módulo WiFi!");
         while (true)
             ; // No continuar
     }
@@ -106,13 +117,13 @@ void conectar_wifi()
     String fv = WiFi.firmwareVersion();
     if (fv < WIFI_FIRMWARE_LATEST_VERSION)
     {
-        Serial.println("Por favor actualice el firmware");
+        Serial.println("⚠️ Por favor actualice el firmware WiFi");
     }
 
     // Intentar conectar a la red WiFi
     while (status != WL_CONNECTED)
     {
-        Serial.print("Intentando conectar a SSID: ");
+        Serial.print("🔗 Intentando conectar a SSID: ");
         Serial.println(ssid);
 
         // Para redes abiertas (sin contraseña)
@@ -130,60 +141,74 @@ void conectar_wifi()
         delay(5000);
     }
 
-    Serial.println("Conectado a WiFi");
-    Serial.print("SSID: ");
+    Serial.println("✅ Conectado a WiFi exitosamente!");
+    Serial.print("📶 SSID: ");
     Serial.println(WiFi.SSID());
     IPAddress ip = WiFi.localIP();
-    Serial.print("Dirección IP: ");
+    Serial.print("🌐 Dirección IP local: ");
     Serial.println(ip);
+    Serial.print("📡 Servidor objetivo: ");
+    Serial.print(server_host);
+    Serial.print(":");
+    Serial.println(server_port);
 }
 
 void enviar_datos_sensores()
 {
-    // Read sensors (keep existing code)
+    // Leer sensores
     uint16_t turbidez_raw = leer_adc(TURBIDITY_PIN);
     uint16_t ph_raw = leer_adc(PH_PIN);
     uint16_t conductividad_raw = leer_adc(CONDUCT_PIN);
 
-    // Convert values (keep existing code)
+    // Convertir valores
     float turbidez = convertir_turbidez(turbidez_raw);
     float ph = convertir_ph(ph_raw);
     float salinidad = convertir_salinidad(conductividad_raw);
 
-    // Reduce serial output frequency
+    // Logging reducido para mejor performance
     static int print_counter = 0;
-    if (++print_counter >= 5)
+    if (++print_counter >= 10) // Cada 10 lecturas (10 segundos)
     {
         print_counter = 0;
-        Serial.print("Datos: T:");
+        Serial.print("📊 Datos leídos - Turbidez: ");
         Serial.print(turbidez, 2);
-        Serial.print(";PH:");
+        Serial.print(" NTU, pH: ");
         Serial.print(ph, 2);
-        Serial.print(";C:");
-        Serial.println(salinidad, 2);
+        Serial.print(", Conductividad: ");
+        Serial.print(salinidad, 2);
+        Serial.println(" μS/cm");
     }
 
+    // Crear JSON con formato exacto esperado por el servidor Python
     StaticJsonDocument<200> doc;
-    doc["T"] = round(turbidez * 100) / 100.0;
-    doc["PH"] = round(ph * 100) / 100.0;
-    doc["C"] = round(salinidad * 100) / 100.0;
+    doc["T"] = round(turbidez * 100) / 100.0;    // Turbidez con 2 decimales
+    doc["PH"] = round(ph * 100) / 100.0;         // pH con 2 decimales  
+    doc["C"] = round(salinidad * 100) / 100.0;   // Conductividad con 2 decimales
 
     String json;
     serializeJson(doc, json);
 
-    // Manage connection
+    // Gestionar conexión al servidor
     if (!isConnected)
     {
+        Serial.print("🔗 Conectando al servidor ");
+        Serial.print(server_host);
+        Serial.print(":");
+        Serial.print(server_port);
+        Serial.print("... ");
+        
         if (!client.connect(server_host, server_port))
         {
-            Serial.println("Fallo en conexión al servidor");
+            Serial.println("❌ FALLO");
+            Serial.println("💡 Verificar que el servidor Python esté ejecutándose");
             return;
         }
         isConnected = true;
-        Serial.println("Conectado al servidor");
+        Serial.println("✅ CONECTADO");
+        Serial.println("📡 Conexión keep-alive establecida");
     }
 
-    // Minimized HTTP request
+    // Construir petición HTTP POST optimizada
     client.print("POST ");
     client.print(server_path);
     client.println(" HTTP/1.1");
@@ -193,19 +218,46 @@ void enviar_datos_sensores()
     client.println("Content-Type: application/json");
     client.print("Content-Length: ");
     client.println(json.length());
-    client.println(); // Blank line is crucial
+    client.println(); // Línea en blanco crucial para HTTP
     client.print(json);
-    client.flush(); // Force data transmission
+    client.flush(); // Forzar transmisión de datos
 
-    // Minimal response processing
+    // Procesamiento mínimo de respuesta para mejor performance
     unsigned long timeout = millis();
     bool headerEnded = false;
+    bool responseReceived = false;
 
-    while (client.connected() && (millis() - timeout < 1000))
+    while (client.connected() && (millis() - timeout < 2000)) // 2 segundos timeout
     {
         if (client.available())
         {
             String line = client.readStringUntil('\n');
+            
+            // Buscar código de respuesta HTTP
+            if (line.startsWith("HTTP/1.1"))
+            {
+                responseReceived = true;
+                if (line.indexOf("200") > 0)
+                {
+                    // Solo mostrar confirmación cada 30 segundos
+                    static unsigned long lastSuccessLog = 0;
+                    if (millis() - lastSuccessLog > 30000)
+                    {
+                        lastSuccessLog = millis();
+                        Serial.println("✅ Datos enviados exitosamente al servidor Python");
+                    }
+                }
+                else if (line.indexOf("400") > 0)
+                {
+                    Serial.println("❌ Error 400: Datos inválidos enviados al servidor");
+                }
+                else if (line.indexOf("500") > 0)
+                {
+                    Serial.println("❌ Error 500: Error interno del servidor Python");
+                }
+            }
+            
+            // Detectar fin de headers
             if (line == "\r")
             {
                 headerEnded = true;
@@ -214,21 +266,30 @@ void enviar_datos_sensores()
         }
     }
 
-    // Drain any remaining response data
+    if (!responseReceived)
+    {
+        Serial.println("⚠️ No se recibió respuesta del servidor (timeout)");
+    }
+
+    // Limpiar cualquier dato restante en el buffer
     while (client.available())
     {
         client.read();
     }
 
-    // Handle connection based on keep-alive setting
+    // Manejar conexión basado en configuración keep-alive
     if (!USE_KEEP_ALIVE)
     {
         client.stop();
         isConnected = false;
     }
+    else
+    {
+        lastConnectionTime = millis();
+    }
 }
 
-// Función para leer ADC con promedio
+// Función para leer ADC con promedio para reducir ruido
 uint16_t leer_adc(uint8_t pin)
 {
     uint32_t sum = 0;
@@ -237,26 +298,29 @@ uint16_t leer_adc(uint8_t pin)
     for (int i = 0; i < samples; i++)
     {
         sum += analogRead(pin);
-        delay(2);
+        delay(2); // Pequeña pausa entre lecturas
     }
 
     return sum / samples;
 }
 
-// Función para convertir valor raw de turbidez (invertido)
+// Función para convertir valor raw de turbidez (invertido para simular sensor real)
 float convertir_turbidez(uint16_t raw)
 {
+    // Simula un sensor de turbidez donde 0V = agua muy turbia, 3.3V = agua clara
     return 1000.0 * (1.0 - (float)raw / 4095.0);
 }
 
-// Función para convertir valor raw de pH
+// Función para convertir valor raw de pH (escala 0-14)
 float convertir_ph(uint16_t raw)
 {
+    // Mapea 0-4095 ADC a escala pH 0-14
     return 14.0 * ((float)raw / 4095.0);
 }
 
-// Función para convertir valor raw de salinidad
+// Función para convertir valor raw de conductividad/salinidad
 float convertir_salinidad(uint16_t raw)
 {
+    // Mapea 0-4095 ADC a rango de conductividad 0-1500 μS/cm
     return 1500.0 * ((float)raw / 4095.0);
 }
