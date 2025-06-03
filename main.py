@@ -290,9 +290,6 @@ async def startup_event():
     logger.info("☁️  Despliegue: AWS")
     logger.info("=" * 60)
     
-    # Aquí podrías inicializar conexiones a BD, caches, etc.
-    # await database.connect()
-    # await redis.connect()
 
 @app.on_event("shutdown")
 async def shutdown_event():

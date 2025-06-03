@@ -19,7 +19,6 @@ char pass[] = SECRET_PASS;
 #define PH_PIN A1
 #define CONDUCT_PIN A2
 
-// CORREGIDO: Configuración de conexión más robusta
 #define USE_KEEP_ALIVE true
 const unsigned long RECONNECT_INTERVAL = 120000; // 2 minutos
 unsigned long lastConnectionTime = 0;
@@ -30,18 +29,17 @@ const char *server_host = "18.101.239.100";
 const int server_port = 8000;
 const char *server_path = "/water-monitor/publish";
 
-// CORREGIDO: Intervalo de actualización más conservador para pruebas
-const unsigned long UPDATE_INTERVAL = 1000; // Mantener 1 segundo pero con mejor manejo
+// Intervalo de actualización más conservador para pruebas
+const unsigned long UPDATE_INTERVAL = 1000; 
 
-// NUEVA: Variables para monitoreo de conexión
+// Variables para monitoreo de conexión
 unsigned long lastSuccessfulSend = 0;
 int consecutiveTimeouts = 0;
 const int MAX_CONSECUTIVE_TIMEOUTS = 3; // Después de 3 timeouts, reconectar
 
-// Cliente WiFi (sin cambio)
 WiFiClient client;
 
-// Variables globales (sin cambio)
+// Variables globales 
 unsigned long lastUpdateTime = 0;
 int status = WL_IDLE_STATUS;
 
@@ -78,9 +76,6 @@ void setup()
     conectar_wifi();
 }
 
-// FUNCIÓN LOOP MEJORADA en main.c
-// Reemplazar la función loop existente con esta versión
-
 void loop()
 {
     // Verificar conexión WiFi periódicamente
@@ -98,7 +93,7 @@ void loop()
         return; // Salir temprano si no hay WiFi
     }
 
-    // NUEVO: Verificar estado de salud de la conexión HTTP
+    // Verificar estado de salud de la conexión HTTP
     unsigned long currentTime = millis();
     
     // Si han pasado muchos timeouts consecutivos, forzar reconexión
@@ -117,7 +112,7 @@ void loop()
         return;
     }
 
-    // CORREGIDO: Manejo de keep-alive más inteligente
+    //  Manejo de keep-alive 
     if (USE_KEEP_ALIVE && isConnected)
     {
         // Verificar si la conexión sigue activa
@@ -140,7 +135,7 @@ void loop()
     {
         lastUpdateTime = currentTime;
         
-        // NUEVO: Monitoreo de salud de conexión
+        // Monitoreo de salud de conexión
         unsigned long timeSinceLastSuccess = currentTime - lastSuccessfulSend;
         
         // Advertencia si hace mucho que no se envía exitosamente
@@ -157,7 +152,7 @@ void loop()
         enviar_datos_sensores();
     }
     
-    // NUEVO: Pequeña pausa para no saturar el CPU
+    // Pequeña pausa para no saturar el CPU
     delay(10);
 }
 
@@ -210,9 +205,6 @@ void conectar_wifi()
     Serial.println(server_port);
 }
 
-// FUNCIÓN CORREGIDA en main.c
-// Reemplazar la función enviar_datos_sensores con esta versión optimizada
-
 void enviar_datos_sensores()
 {
     // Leer sensores
@@ -248,7 +240,6 @@ void enviar_datos_sensores()
     String json;
     serializeJson(doc, json);
 
-    // CORREGIDO: Gestión de conexión más robusta
     bool connection_success = false;
 
     // Si no hay conexión activa o ha pasado tiempo desde la última conexión
@@ -267,7 +258,7 @@ void enviar_datos_sensores()
         Serial.print(server_port);
         Serial.print("... ");
 
-        // CORREGIDO: Timeout más generoso para conexión inicial
+        // Timeout generoso para conexión inicial
         unsigned long connect_start = millis();
         while (!client.connect(server_host, server_port) && (millis() - connect_start) < 5000)
         {
@@ -300,7 +291,7 @@ void enviar_datos_sensores()
         return;
     }
 
-    // CORREGIDO: Construir petición HTTP optimizada con headers mejorados
+    // Construir petición HTTP optimizada con headers mejorados
     client.print("POST ");
     client.print(server_path);
     client.println(" HTTP/1.1");
@@ -315,14 +306,14 @@ void enviar_datos_sensores()
     client.print(json);
     client.flush(); // Forzar transmisión de datos
 
-    // CORREGIDO: Procesamiento de respuesta más robusto con timeout extendido
+    // Procesamiento de respuesta con timeout extendido
     unsigned long timeout_start = millis();
     bool headerEnded = false;
     bool responseReceived = false;
     String statusLine = "";
     int responseCode = 0;
 
-    // CORREGIDO: Timeout aumentado a 5 segundos para respuesta
+    // Timeout aumentado a 5 segundos para respuesta
     while (client.connected() && (millis() - timeout_start < 5000))
     {
         if (client.available())
@@ -382,11 +373,11 @@ void enviar_datos_sensores()
             }
         }
 
-        // CORREGIDO: Pequeña pausa para no saturar el CPU
+        //  Pequeña pausa para no saturar el CPU
         delay(1);
     }
 
-    // CORREGIDO: Verificación de timeout más detallada
+    //  Verificación de timeout más detallada
     if (!responseReceived)
     {
         unsigned long elapsed = millis() - timeout_start;
@@ -408,7 +399,7 @@ void enviar_datos_sensores()
         lastConnectionTime = millis();
     }
 
-    // CORREGIDO: Limpiar buffer de manera más eficiente
+    // Limpiar buffer
     int bytesCleared = 0;
     while (client.available() && bytesCleared < 512)
     { // Límite para evitar bucle infinito
@@ -416,7 +407,7 @@ void enviar_datos_sensores()
         bytesCleared++;
     }
 
-    // CORREGIDO: Manejo de keep-alive mejorado
+    // Manejo de keep-alive 
     if (USE_KEEP_ALIVE)
     {
         // Verificar que la conexión sigue activa

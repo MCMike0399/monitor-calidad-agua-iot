@@ -94,7 +94,6 @@ class DistributedSystemMonitor:
     Monitor Avanzado de Sistema Distribuido - CORREGIDO
     =================================================
     
-    CAMBIOS IMPORTANTES:
     - Separación clara entre conexiones del sistema de monitoreo y clientes web reales
     - Solo cuenta como "active_connections" las conexiones de clientes web (dashboard + admin)
     - Las conexiones del sistema de monitoreo se rastrean por separado para debugging
@@ -104,7 +103,7 @@ class DistributedSystemMonitor:
         # Almacén de eventos recientes
         self.recent_events: deque = deque(maxlen=1000)
         
-        # CORREGIDO: Separación clara entre tipos de conexiones
+        # Separación clara entre tipos de conexiones
         self.monitor_clients: List[WebSocket] = []  # Solo conexiones del sistema de monitoreo
         
         # Métricas del sistema
@@ -120,7 +119,7 @@ class DistributedSystemMonitor:
             "bytes_received": 0
         }
         
-        # CORREGIDO: Rastreo específico de conexiones por tipo
+        # Rastreo específico de conexiones por tipo
         self.connection_registry = {
             "water_monitor_clients": set(),    # IDs únicos de clientes del dashboard de agua
             "admin_clients": set(),            # IDs únicos de clientes admin  
@@ -167,7 +166,7 @@ class DistributedSystemMonitor:
         if event.event_type == EventType.CONNECTION:
             self.counters["total_connections"] += 1
             
-            # CORREGIDO: Logging educativo específico con separación de tipos
+            # Logging educativo específico con separación de tipos
             if "websocket_monitor_websocket" in event.source.lower():
                 logger.info(f"🌊 Cliente del dashboard de agua conectado via WebSocket (total dashboard: {len(self.connection_registry['water_monitor_clients'])})")
             elif "admin_websocket" in event.source.lower():
@@ -195,7 +194,7 @@ class DistributedSystemMonitor:
                 else:
                     self.counters["bytes_received"] += event.details["bytes"]
                     
-            # CORREGIDO: Logging educativo para datos con información de conexiones web
+            # Logging educativo para datos con información de conexiones web
             if event.event_type == EventType.DATA_RECEIVED and "arduino" in event.source.lower():
                 self.connection_registry["arduino_active"] = True
                 self.connection_registry["last_arduino_ping"] = datetime.now()
@@ -212,10 +211,10 @@ class DistributedSystemMonitor:
         logger.debug(f"📊 Evento registrado: {event.event_type.value} desde {event.source}")
     
     async def record_connection(self, websocket: WebSocket, client_type: str):
-        """CORREGIDO: Registra una nueva conexión con categorización apropiada"""
+        """ Registra una nueva conexión con categorización apropiada"""
         connection_id = self.generate_connection_id(websocket, client_type)
 
-        # CORREGIDO: Categorizar conexiones apropiadamente
+        # Categorizar conexiones apropiadamente
         if client_type == "monitor":
             # Cliente del dashboard de agua (SÍ cuenta como cliente web)
             self.connection_registry["water_monitor_clients"].add(connection_id)
@@ -259,9 +258,9 @@ class DistributedSystemMonitor:
         return connection_id
     
     async def record_disconnection(self, connection_id: str, client_type: str, duration_ms: float = 0.0):
-        """CORREGIDO: Registra una desconexión con categorización apropiada"""
+        """Registra una desconexión con categorización apropiada"""
         
-        # CORREGIDO: Remover de la categoría apropiada
+        # Remover de la categoría apropiada
         if client_type == "monitor" and connection_id in self.connection_registry["water_monitor_clients"]:
             self.connection_registry["water_monitor_clients"].remove(connection_id)
         elif client_type == "admin" and connection_id in self.connection_registry["admin_clients"]:
@@ -278,9 +277,9 @@ class DistributedSystemMonitor:
             details={
                 "client_type": client_type,
                 "connection_id": connection_id,
-                "total_web_connections": web_client_count,  # CORREGIDO: Solo clientes web
-                "is_web_client": client_type in ["monitor", "admin"],  # NUEVO
-                "breakdown": {  # NUEVO: Desglose detallado
+                "total_web_connections": web_client_count,  # Solo clientes web
+                "is_web_client": client_type in ["monitor", "admin"], 
+                "breakdown": {  # Desglose detallado
                     "dashboard_clients": len(self.connection_registry["water_monitor_clients"]),
                     "admin_clients": len(self.connection_registry["admin_clients"]),
                     "system_monitor_clients": len(self.connection_registry["system_monitor_clients"])
@@ -302,7 +301,7 @@ class DistributedSystemMonitor:
                 "bytes": data_size,
                 "protocol": "HTTP_POST",
                 "explanation": "Arduino usa HTTP POST porque consume menos RAM que WebSocket",
-                "web_clients_to_notify": self.get_web_client_count()  # NUEVO
+                "web_clients_to_notify": self.get_web_client_count()
             }
         ))
     
@@ -346,7 +345,7 @@ class DistributedSystemMonitor:
                     if (current_time - e.timestamp).total_seconds() <= 1
                 ])
                 
-                # CORREGIDO: Contar SOLO conexiones web reales, excluyendo sistema de monitoreo
+                # Contar SOLO conexiones web reales, excluyendo sistema de monitoreo
                 active_web_connections = self.get_web_client_count()
                 
                 # Verificar si Arduino sigue activo (timeout de 10 segundos)
@@ -364,7 +363,7 @@ class DistributedSystemMonitor:
                         "packets_sent": network.packets_sent,
                         "packets_recv": network.packets_recv
                     },
-                    active_connections=active_web_connections,  # CORREGIDO: Solo clientes web
+                    active_connections=active_web_connections,  # Solo clientes web
                     total_events=len(self.recent_events),
                     events_per_second=events_in_last_second
                 )
@@ -395,13 +394,13 @@ class DistributedSystemMonitor:
             "counters": self.counters,
             "connection_states": {
                 "arduino_active": self.connection_registry["arduino_active"],
-                # CORREGIDO: Información detallada y precisa sobre conexiones
+                # Información detallada y precisa sobre conexiones
                 "water_monitor_clients": len(self.connection_registry["water_monitor_clients"]),
                 "admin_clients": len(self.connection_registry["admin_clients"]),
                 "system_monitor_clients": len(self.connection_registry["system_monitor_clients"]),
                 "total_web_clients": self.get_web_client_count(),
                 "last_arduino_ping": self.connection_registry["last_arduino_ping"].isoformat() if self.connection_registry["last_arduino_ping"] else None,
-                # NUEVO: Información adicional para debugging de topología
+                # Información adicional para debugging de topología
                 "connection_breakdown": {
                     "monitor_active": len(self.connection_registry["water_monitor_clients"]) > 0,
                     "admin_active": len(self.connection_registry["admin_clients"]) > 0,
@@ -427,7 +426,7 @@ class DistributedSystemMonitor:
         for client in disconnected_clients:
             self.monitor_clients.remove(client)
 
-        # NUEVO: Log periódico para debugging (cada 30 segundos)
+        # Log periódico para debugging (cada 30 segundos)
         current_time = datetime.now()
         if not hasattr(self, '_last_debug_log') or (current_time - self._last_debug_log).total_seconds() > 30:
             self._last_debug_log = current_time
@@ -481,7 +480,7 @@ async def system_monitor_websocket(websocket: WebSocket):
     await websocket.accept()
     system_monitor.add_monitor_client(websocket)
     
-    # CORREGIDO: Registrar como conexión del sistema de monitoreo (no cliente web)
+    # Registrar como conexión del sistema de monitoreo (no cliente web)
     connection_id = await system_monitor.record_connection(websocket, "system_monitor")
     
     connection_start_time = time.time()
@@ -498,7 +497,7 @@ async def system_monitor_websocket(websocket: WebSocket):
             "counters": system_monitor.counters,
             "connection_states": {
                 "arduino_active": system_monitor.connection_registry["arduino_active"],
-                # CORREGIDO: Información precisa sobre tipos de conexiones
+                # Información precisa sobre tipos de conexiones
                 "water_monitor_clients": len(system_monitor.connection_registry["water_monitor_clients"]),
                 "admin_clients": len(system_monitor.connection_registry["admin_clients"]),
                 "system_monitor_clients": len(system_monitor.connection_registry["system_monitor_clients"]),
@@ -537,7 +536,7 @@ async def system_monitor_websocket(websocket: WebSocket):
                                 "events_count": len(system_monitor.recent_events),
                                 "metrics_count": len(system_monitor.metrics_history),
                                 "bytes": len(json.dumps(history_data)),
-                                "web_clients_active": system_monitor.get_web_client_count()  # NUEVO
+                                "web_clients_active": system_monitor.get_web_client_count() 
                             }
                         ))
                         
@@ -648,7 +647,7 @@ def monitor_websocket_events(func):
         client_type = "unknown"
         connection_id = None
         
-        # CORREGIDO: Determinar tipo de cliente apropiadamente
+        # Determinar tipo de cliente apropiadamente
         if "monitor_websocket" in func.__name__ and "admin" not in func.__name__:
             client_type = "monitor"  # Cliente del dashboard de agua (SÍ cuenta como web)
         elif "admin" in func.__name__:

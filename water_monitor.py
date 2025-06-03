@@ -116,11 +116,11 @@ class WaterMonitorState:
             source=DataSource.MOCK
         )
         
-        # CORREGIDO: Separación clara de tipos de conexiones
+        # Separación clara de tipos de conexiones
         self.monitor_clients: List[WebSocket] = []  # Solo clientes del dashboard de agua
         self.admin_clients: List[WebSocket] = []    # Solo clientes del panel admin
         
-        # NUEVO: Registro detallado con IDs únicos para debugging
+        # Registro detallado con IDs únicos para debugging
         self.connection_registry: Dict[str, Dict] = {}
         
         # Configuración del sistema
@@ -132,7 +132,7 @@ class WaterMonitorState:
             "total_readings": 0,
             "arduino_readings": 0,
             "mock_readings": 0,
-            "connected_clients": 0,  # CORREGIDO: Solo clientes web reales
+            "connected_clients": 0,  #  Solo clientes web reales
             "uptime_start": datetime.now(),
             "last_arduino_connection": None
         }
@@ -172,7 +172,7 @@ class WaterMonitorState:
             self.stats["mock_readings"] += 1
             logger.debug(f"🎭 Datos simulados: T={reading.turbidity}NTU, pH={reading.ph}, C={reading.conductivity}μS/cm")
         
-        # CORREGIDO: Actualizar conteo solo de clientes web reales
+        # Actualizar conteo solo de clientes web reales
         self.stats["connected_clients"] = self.get_web_client_count()
         
         # Notificar a todos los clientes conectados
@@ -214,7 +214,7 @@ class WaterMonitorState:
         for client in disconnected_clients:
             self.monitor_clients.remove(client)
             
-        # CORREGIDO: Actualizar estadísticas solo con clientes web reales
+        # Actualizar estadísticas solo con clientes web reales
         self.stats["connected_clients"] = self.get_web_client_count()
     
     async def _broadcast_to_admin(self):
@@ -232,14 +232,14 @@ class WaterMonitorState:
                     self.stats["last_arduino_connection"].isoformat() 
                     if self.stats["last_arduino_connection"] else None
                 ),
-                # CORREGIDO: Asegurar que connected_clients refleje solo clientes web
+                # Asegurar que connected_clients refleje solo clientes web
                 "connected_clients": self.get_web_client_count()
             },
             "config": {
                 "use_mock_data": self.use_mock_data,
                 "connected_monitor_clients": len(self.monitor_clients),
                 "connected_admin_clients": len(self.admin_clients),
-                # NUEVO: Información detallada para debugging
+                # Información detallada para debugging
                 "total_web_clients": self.get_web_client_count()
             }
         }
@@ -266,7 +266,7 @@ class WaterMonitorState:
             "connected_at": datetime.now()
         }
         
-        # CORREGIDO: Actualizar conteo solo con clientes web reales
+        #  Actualizar conteo solo con clientes web reales
         self.stats["connected_clients"] = self.get_web_client_count()
         
         logger.info(f"👥 Cliente de monitoreo conectado. Dashboard clients: {len(self.monitor_clients)}, Total web clients: {self.get_web_client_count()}")
@@ -286,7 +286,7 @@ class WaterMonitorState:
             if connection_id:
                 del self.connection_registry[connection_id]
                 
-            # CORREGIDO: Actualizar conteo solo con clientes web reales
+            # Actualizar conteo solo con clientes web reales
             self.stats["connected_clients"] = self.get_web_client_count()
             
             logger.info(f"👥 Cliente de monitoreo desconectado. Dashboard clients: {len(self.monitor_clients)}, Total web clients: {self.get_web_client_count()}")
@@ -301,7 +301,7 @@ class WaterMonitorState:
             "connected_at": datetime.now()
         }
         
-        # CORREGIDO: Actualizar conteo solo con clientes web reales
+        # Actualizar conteo solo con clientes web reales
         self.stats["connected_clients"] = self.get_web_client_count()
         
         logger.info(f"🛠️ Cliente admin conectado. Admin clients: {len(self.admin_clients)}, Total web clients: {self.get_web_client_count()}")
@@ -321,7 +321,7 @@ class WaterMonitorState:
             if connection_id:
                 del self.connection_registry[connection_id]
                 
-            # CORREGIDO: Actualizar conteo solo con clientes web reales
+            # Actualizar conteo solo con clientes web reales
             self.stats["connected_clients"] = self.get_web_client_count()
             
             logger.info(f"🛠️ Cliente admin desconectado. Admin clients: {len(self.admin_clients)}, Total web clients: {self.get_web_client_count()}")
@@ -329,7 +329,7 @@ class WaterMonitorState:
 # Instancia global del estado del sistema
 water_state = WaterMonitorState()
 
-# Generador de datos simulados (sin cambios)
+# Generador de datos simulados 
 async def generate_mock_data():
     """Generador de Datos Simulados para Pruebas"""
     logger.info("🎭 Iniciando generación de datos simulados cada {:.1f} segundos".format(MOCK_DATA_CONFIG["interval_seconds"]))
@@ -356,7 +356,7 @@ async def generate_mock_data():
             logger.error(f"💥 Error en generación de datos mock: {str(e)}")
             await asyncio.sleep(5)
 
-# Endpoint HTTP para Arduino (sin cambios)
+# Endpoint HTTP para Arduino
 async def arduino_http_endpoint(request: Request) -> Response:
     """Endpoint HTTP POST para Recepción de Datos del Arduino"""
     try:
@@ -391,10 +391,10 @@ async def arduino_http_endpoint(request: Request) -> Response:
         logger.error(f"💥 Error procesando datos del Arduino: {str(e)}")
         return Response(status_code=500)
 
-# WebSocket Endpoints CORREGIDOS
+# WebSocket Endpoints
 @monitor_websocket_events
 async def monitor_websocket_endpoint(websocket: WebSocket):
-    """WebSocket para Clientes de Monitoreo (Dashboard Principal) - CONTEO CORREGIDO"""
+    """WebSocket para Clientes de Monitoreo (Dashboard Principal) """
     await websocket.accept()
     connection_id = water_state.add_monitor_client(websocket)
     connection_start_time = time.time()
@@ -417,7 +417,7 @@ async def monitor_websocket_endpoint(websocket: WebSocket):
                 "protocol": "WebSocket",
                 "explanation": "Dashboard usa WebSocket para recibir datos en tiempo real sin polling",
                 "connection_id": connection_id,
-                "total_web_clients": water_state.get_web_client_count()  # NUEVO: Info corregida
+                "total_web_clients": water_state.get_web_client_count() 
             }
         ))
         
@@ -461,7 +461,7 @@ async def monitor_websocket_endpoint(websocket: WebSocket):
                         "type": "heartbeat",
                         "timestamp": datetime.now().isoformat(),
                         "server_status": "active",
-                        "connected_clients": water_state.get_web_client_count(),  # CORREGIDO
+                        "connected_clients": water_state.get_web_client_count(), 
                         "data_source": water_state.latest_reading.source.value
                     }
                     await websocket.send_json(heartbeat_data)
@@ -487,14 +487,14 @@ async def monitor_websocket_endpoint(websocket: WebSocket):
                 "reason": "websocket_closed",
                 "session_duration_ms": duration,
                 "connection_id": connection_id,
-                "remaining_web_clients": water_state.get_web_client_count()  # NUEVO
+                "remaining_web_clients": water_state.get_web_client_count() 
             },
             duration_ms=duration
         ))
 
 @monitor_websocket_events
 async def admin_websocket_endpoint(websocket: WebSocket):
-    """WebSocket para Panel de Administración del Sistema - CONTEO CORREGIDO"""
+    """WebSocket para Panel de Administración del Sistema """
     await websocket.accept()
     connection_id = water_state.add_admin_client(websocket)
     connection_start_time = time.time()
@@ -525,7 +525,7 @@ async def admin_websocket_endpoint(websocket: WebSocket):
         logger.info(f"🛠️ Cliente admin conectado y estado inicial enviado (conexión: {connection_id[:8]})")
         logger.info(f"📈 Estado actual: Admin clients: {len(water_state.admin_clients)}, Total web clients: {water_state.get_web_client_count()}")
         
-        # CORREGIDO: Registrar conexión admin con información más detallada
+        # Registrar conexión admin con información más detallada
         await system_monitor.record_event(SystemEvent(
             event_type=EventType.CONNECTION,
             timestamp=datetime.now(),
@@ -618,7 +618,7 @@ async def admin_websocket_endpoint(websocket: WebSocket):
         water_state.remove_admin_client(websocket)
         
         duration = (time.time() - connection_start_time) * 1000
-        # CORREGIDO: Registrar desconexión admin con información detallada
+        # Registrar desconexión admin con información detallada
         await system_monitor.record_event(SystemEvent(
             event_type=EventType.DISCONNECTION,
             timestamp=datetime.now(),
@@ -650,7 +650,7 @@ async def get_admin_dashboard():
             status_code=404
         )
 
-# Función principal de registro de rutas (sin cambios importantes)
+# Función principal de registro de rutas 
 def register_routes(app: FastAPI):
     """Registrar Todas las Rutas del Sistema de Monitoreo"""
     logger.info("🔗 Registrando rutas del sistema de monitoreo educativo...")
