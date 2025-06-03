@@ -1,373 +1,498 @@
-# 🌊 Monitor IoT de Calidad de Agua - Sistema Didáctico Completo
+# 🌊 Sistema de Monitoreo IoT de Calidad de Agua
 
 ## 📋 Descripción del Proyecto
 
-Este proyecto implementa un **sistema completo de monitoreo de calidad de agua** usando tecnologías IoT modernas, diseñado específicamente para fines **educativos y demostrativos** en cursos de sistemas embebidos y sistemas distribuidos.
+Sistema distribuido en tiempo real para monitoreo de calidad de agua que demuestra conceptos avanzados de **sistemas distribuidos**, **comunicación IoT** y **arquitectura moderna de software**. El proyecto integra hardware Arduino con servicios en la nube para crear una solución completa de monitoreo ambiental.
 
-### 🎯 Objetivos Educativos
+### 🎯 Objetivos del Proyecto
 
-- **Sistemas Distribuidos**: Demostrar comunicación entre múltiples componentes
-- **WebSockets**: Implementar comunicación bidireccional en tiempo real
-- **IoT Architecture**: Mostrar arquitectura típica de dispositivos IoT
-- **Docker Containers**: Containerización y despliegue en la nube
-- **Real-time Data**: Procesamiento y visualización de datos en tiempo real
-- **System Monitoring**: Monitoreo avanzado de sistemas distribuidos
+- **Demostración Educativa**: Enseñar conceptos de sistemas distribuidos, protocolos de comunicación y arquitecturas IoT
+- **Monitoreo Real**: Sistema funcional para medir turbidez, pH y conductividad del agua
+- **Escalabilidad**: Arquitectura preparada para múltiples sensores y ubicaciones
+- **Observabilidad**: Sistema completo de logging, métricas y debugging
+
+---
 
 ## 🏗️ Arquitectura del Sistema
 
+```mermaid
+graph TB
+    subgraph "Hardware Layer"
+        A[Arduino Uno R4 WiFi]
+        A1[Sensor Turbidez - A0]
+        A2[Sensor pH - A1] 
+        A3[Sensor Conductividad - A2]
+        A1 --> A
+        A2 --> A
+        A3 --> A
+    end
+    
+    subgraph "Communication Layer"
+        B[HTTP POST]
+        C[WebSocket Bidireccional]
+        A -->|Datos cada 1s| B
+    end
+    
+    subgraph "Server Layer - FastAPI"
+        D[Endpoint /water-monitor/publish]
+        E[WebSocket Manager]
+        F[Sistema de Estado]
+        G[Monitor de Sistema]
+        B --> D
+        D --> F
+        F --> E
+        E --> C
+    end
+    
+    subgraph "Client Layer"
+        H[Dashboard Web - Tiempo Real]
+        I[Panel de Administración]
+        J[Monitor de Sistema Distribuido]
+        C --> H
+        C --> I
+        C --> J
+    end
+    
+    subgraph "Infrastructure Layer"
+        K[Docker Container]
+        L[AWS ECS/Fargate]
+        M[CloudWatch Logs]
+        N[Load Balancer]
+        F --> K
+        K --> L
+        L --> M
+        N --> L
+    end
+    
+    style A fill:#ff9999
+    style F fill:#99ccff
+    style H fill:#99ff99
+    style L fill:#ffcc99
 ```
-┌─────────────────┐    HTTP POST     ┌──────────────────┐    WebSocket     ┌─────────────────┐
-│   Arduino UNO   │ ──────────────▶  │   FastAPI        │ ──────────────▶  │   Dashboard     │
-│   R4 WiFi       │                  │   Servidor       │                  │   Web           │
-│                 │                  │                  │                  │                 │
-│ • Sensor pH     │                  │ • HTTP API       │                  │ • Gráficos      │
-│ • Turbidez      │                  │ • WebSockets     │                  │ • Tiempo Real   │
-│ • Conductividad │                  │ • State Mgmt     │                  │ • Alertas       │
-└─────────────────┘                  └──────────────────┘                  └─────────────────┘
-                                              │
-                                              │ WebSocket
-                                              ▼
-                                      ┌──────────────────┐
-                                      │  Admin Panel     │
-                                      │                  │
-                                      │ • Control Mock   │
-                                      │ • Estadísticas   │
-                                      │ • Configuración  │
-                                      └──────────────────┘
-                                              │
-                                              │ WebSocket
-                                              ▼
-                                      ┌──────────────────┐
-                                      │ System Monitor   │
-                                      │                  │
-                                      │ • Métricas CPU   │
-                                      │ • Eventos Red    │
-                                      │ • Logs Tiempo    │
-                                      │   Real           │
-                                      └──────────────────┘
-```
+
+### 🔄 Flujo de Comunicación
+
+1. **Arduino → Servidor**: HTTP POST cada segundo con datos de sensores
+2. **Servidor → Clientes**: WebSocket push automático para visualización en tiempo real
+3. **Admin → Servidor**: Comandos bidireccionales via WebSocket para control del sistema
+4. **Monitor → Sistema**: Observabilidad completa con métricas y logs estructurados
+
+---
+
+## 🛠️ Stack Tecnológico
+
+### **Backend & API**
+- **FastAPI**: Framework moderno con documentation automática (OpenAPI/Swagger)
+- **WebSockets**: Comunicación bidireccional en tiempo real
+- **Uvicorn**: Servidor ASGI de alto rendimiento
+- **Asyncio**: Programación asíncrona para concurrencia
+
+### **Frontend & Visualización**
+- **HTML5/CSS3/JavaScript**: Frontend moderno y responsivo
+- **Plotly.js**: Gráficos interactivos en tiempo real
+- **WebSocket API**: Cliente JavaScript para comunicación en tiempo real
+
+### **Hardware & IoT**
+- **Arduino Uno R4 WiFi**: Microcontrolador con conectividad integrada
+- **Sensores ADC**: Lectura analógica para turbidez, pH y conductividad
+- **ArduinoJson**: Serialización eficiente de datos
+
+### **DevOps & Infrastructure**
+- **Docker**: Containerización con multi-stage builds optimizados
+- **AWS ECS/Fargate**: Orquestación de contenedores serverless
+- **AWS CloudWatch**: Logging centralizado y métricas
+- **GitHub Actions**: CI/CD automatizado
+
+---
 
 ## 📁 Estructura del Proyecto
 
 ```
-proyecto-monitor-agua/
-├── 📄 main.py                    # Servidor principal FastAPI
-├── 📄 water_monitor.py           # Sistema de WebSockets y monitoreo
-├── 📄 system_monitor.py          # Monitor avanzado de sistema distribuido
-├── 📄 logging_config.py          # Configuración de logging
-├── 📄 requirements.txt           # Dependencias Python
-├── 📄 dockerfile                # Configuración Docker
-├── 📄 .dockerignore             # Archivos a ignorar en Docker
-├── 📄 .gitignore                # Archivos a ignorar en Git
-├── 📄 .env                       # Variables de entorno (crear)
-├── 📁 static/                   # Archivos estáticos web
-│   ├── 📄 ws_client.html        # Dashboard principal de monitoreo
-│   └── 📄 ws_client.js          # JavaScript del cliente
-└── 📄 main.c                    # Código Arduino (sensores)
+iot-water-monitor/
+├── 📄 main.py                     # Servidor principal FastAPI
+├── 📄 water_monitor.py            # Sistema de monitoreo y WebSockets
+├── 📄 system_monitor.py           # Monitor de sistema distribuido
+├── 📄 logging_config.py           # Configuración de logging avanzado
+├── 📄 requirements.txt            # Dependencias Python
+├── 📄 dockerfile                  # Container multi-stage optimizado
+├── 📄 .dockerignore              # Optimización de build context
+├── 📄 main.c                     # Código Arduino (sensores + HTTP)
+│
+├── 📁 static/                    # Frontend y assets
+│   ├── 📄 index.html             # Página principal del sistema
+│   ├── 📄 ws_client.html         # Dashboard de monitoreo principal
+│   ├── 📄 ws_client.js           # Cliente WebSocket con validación
+│   ├── 📄 admin_dashboard.html   # Panel de administración
+│   └── 📄 system_monitor.html    # Monitor de sistema distribuido
+│
+└── 📁 config/                   # Configuraciones
+    ├── 📄 .env.example          # Variables de entorno
+    └── 📄 arduino_secrets.h     # Configuración WiFi Arduino
 ```
+
+---
+
+## 🐳 Containerización con Docker
+
+### **Estrategia Multi-Stage Build**
+
+El proyecto utiliza una estrategia avanzada de **multi-stage build** para optimización:
+
+```dockerfile
+# Stage 1: Builder - Instalación de dependencias
+FROM python:3.11-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y build-essential libpq-dev
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+# Stage 2: Runtime - Imagen final optimizada
+FROM python:3.11-slim
+WORKDIR /app
+# Copiar solo lo necesario desde builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+COPY --from=builder /app /app
+
+# Configuración de seguridad
+RUN useradd --create-home fastapi
+USER fastapi
+
+# Health check integrado
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### **Beneficios de esta Arquitectura**
+
+✅ **Imagen Final Reducida**: Solo runtime sin herramientas de build  
+✅ **Seguridad**: Usuario no-root, superficie de ataque mínima  
+✅ **Health Checks**: Monitoreo automático del contenedor  
+✅ **Optimización**: Cache layers para builds rápidos  
+
+---
+
+## ☁️ Deployment en AWS
+
+### **Arquitectura de Producción en AWS**
+
+```mermaid
+graph TB
+    subgraph "Internet"
+        U[Usuarios/Arduino]
+    end
+    
+    subgraph "AWS Region"
+        subgraph "Networking"
+            ALB[Application Load Balancer]
+            R53[Route 53 DNS]
+        end
+        
+        subgraph "Compute - ECS Fargate"
+            ECS[ECS Cluster]
+            T1[Task 1 - Container]
+            T2[Task 2 - Container]
+            T3[Task N - Container]
+        end
+        
+        subgraph "Monitoring & Logging"
+            CW[CloudWatch Logs]
+            CWM[CloudWatch Metrics]
+            XR[X-Ray Tracing]
+        end
+        
+        subgraph "Security"
+            SG[Security Groups]
+            IAM[IAM Roles]
+            SM[Secrets Manager]
+        end
+    end
+    
+    U --> R53
+    R53 --> ALB
+    ALB --> ECS
+    ECS --> T1
+    ECS --> T2
+    ECS --> T3
+    T1 --> CW
+    T2 --> CW
+    T3 --> CW
+    ECS --> CWM
+    ECS --> XR
+    
+    style ALB fill:#ff9999
+    style ECS fill:#99ccff
+    style CW fill:#99ff99
+```
+
+### **Servicios AWS Utilizados**
+
+| Servicio | Propósito | Configuración |
+|----------|-----------|---------------|
+| **ECS Fargate** | Orquestación serverless de contenedores | Auto-scaling based on CPU/Memory |
+| **Application Load Balancer** | Distribución de tráfico con SSL termination | Health checks + sticky sessions |
+| **Route 53** | DNS con failover automático | Latency-based routing |
+| **CloudWatch** | Logging centralizado y métricas | Log retention + alertas personalizadas |
+| **Secrets Manager** | Gestión segura de credenciales | Rotación automática |
+| **VPC** | Red privada con security groups | Multi-AZ para alta disponibilidad |
+
+### **Configuración de Deployment**
+
+```yaml
+# task-definition.json (ECS)
+{
+  "family": "water-monitor-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [{
+    "name": "water-monitor",
+    "image": "your-account.dkr.ecr.region.amazonaws.com/water-monitor:latest",
+    "portMappings": [{"containerPort": 8000}],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/ecs/water-monitor",
+        "awslogs-region": "us-east-1",
+        "awslogs-stream-prefix": "ecs"
+      }
+    },
+    "healthCheck": {
+      "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+      "interval": 30,
+      "timeout": 5,
+      "retries": 3
+    }
+  }]
+}
+```
+
+---
+
+## 🎓 Conceptos Educativos Demostrados
+
+### **1. Sistemas Distribuidos**
+- **Comunicación Asíncrona**: HTTP vs WebSockets
+- **Patrón Pub/Sub**: Desacoplamiento de productores y consumidores
+- **Tolerancia a Fallos**: Reconexión automática y manejo de errores
+- **Observabilidad**: Logging estructurado, métricas y tracing
+
+### **2. Protocolos de Comunicación**
+- **HTTP POST**: Arduino → Servidor (eficiente en memoria)
+- **WebSocket**: Servidor ↔ Clientes (comunicación bidireccional)
+- **JSON**: Serialización estándar multiplataforma
+
+### **3. Arquitectura de Software**
+- **Microservices Pattern**: Separación de responsabilidades
+- **Middleware Pipeline**: Logging, CORS, error handling
+- **Dependency Injection**: FastAPI con type hints
+- **Async/Await**: Programación concurrente en Python
+
+### **4. DevOps y Infrastructure**
+- **Infrastructure as Code**: Configuraciones declarativas
+- **Container Orchestration**: ECS para escalabilidad
+- **CI/CD Pipelines**: Deployment automatizado
+- **Monitoring**: Observabilidad end-to-end
+
+---
 
 ## 🚀 Instalación y Configuración
 
-### 1. Prerrequisitos
+### **Desarrollo Local**
 
-- **Python 3.11+**
-- **Docker** (opcional, para containerización)
-- **Arduino IDE** (para programar el Arduino)
-- **Arduino Uno R4 WiFi**
-- **Sensores**: pH, turbidez, conductividad
-
-### 2. Configuración del Entorno Python
-
+1. **Clonar el repositorio**
 ```bash
-# Clonar el repositorio
-git clone <tu-repositorio>
-cd proyecto-monitor-agua
+git clone https://github.com/tu-usuario/iot-water-monitor.git
+cd iot-water-monitor
+```
 
-# Crear entorno virtual
-python -m venv myenv
-source myenv/bin/activate  # En Windows: myenv\Scripts\activate
-
-# Instalar dependencias
+2. **Configurar entorno Python**
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 ```
 
-### 3. Configuración de Variables de Entorno
-
-Crear archivo `.env` en la raíz del proyecto:
-
-```env
-# Configuración del servidor
-HOST=0.0.0.0
-PORT=8000
-DEBUG=True
-ENVIRONMENT=development
-
-# Configuración de logging
-LOG_LEVEL=INFO
+3. **Configurar variables de entorno**
+```bash
+cp .env.example .env
+# Editar .env con tus configuraciones
 ```
 
-### 4. Ejecución del Sistema
-
-#### Modo Desarrollo (Local)
-
+4. **Ejecutar servidor de desarrollo**
 ```bash
-# Ejecutar servidor con recarga automática
 python main.py
-
-# O usando uvicorn directamente
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# Servidor disponible en http://localhost:8000
 ```
 
-#### Modo Producción (Docker)
+### **Docker Local**
 
 ```bash
-# Construir imagen Docker
+# Build de la imagen
 docker build -t water-monitor .
 
 # Ejecutar contenedor
 docker run -p 8000:8000 water-monitor
 
-# O usando docker-compose (crear docker-compose.yml)
-docker-compose up -d
+# Con docker-compose (si disponible)
+docker-compose up --build
 ```
 
-## 🌐 Interfaces Web Disponibles
+### **Configuración Arduino**
 
-Una vez que el servidor esté ejecutándose, accede a:
+1. **Instalar librerías**
+   - WiFiS3 (para Uno R4 WiFi)
+   - ArduinoJson
 
-| URL | Descripción | Propósito Educativo |
-|-----|-------------|-------------------|
-| `http://localhost:8000/` | **Página Principal** | Introducción al sistema |
-| `http://localhost:8000/water-monitor` | **Dashboard de Monitoreo** | Visualización de datos en tiempo real |
-| `http://localhost:8000/admin-dashboard` | **Panel de Administración** | Control del sistema y configuración |
-| `http://localhost:8000/system-monitor` | **Monitor de Sistema** | Análisis profundo de comunicaciones |
-| `http://localhost:8000/docs` | **Documentación API** | Swagger UI automático |
-| `http://localhost:8000/redoc` | **Documentación ReDoc** | Documentación alternativa |
-
-## 🔧 Configuración del Arduino
-
-### 1. Preparar el Arduino Uno R4 WiFi
-
+2. **Configurar credenciales WiFi**
 ```cpp
-// Archivo: arduino_secrets.h (crear este archivo)
+// arduino_secrets.h
 #define SECRET_SSID "TU_WIFI_SSID"
 #define SECRET_PASS "TU_WIFI_PASSWORD"
 ```
 
-### 2. Conexiones de Sensores
-
-| Sensor | Pin Arduino | Descripción |
-|--------|-------------|-------------|
-| **Turbidez** | A0 | Sensor de turbidez (NTU) |
-| **pH** | A1 | Sensor de pH (0-14) |
-| **Conductividad** | A2 | Sensor de conductividad (μS/cm) |
-
-### 3. Programar el Arduino
-
-1. Abrir `main.c` en Arduino IDE
-2. Crear archivo `arduino_secrets.h` con credenciales WiFi
-3. Instalar bibliotecas necesarias:
-   - `WiFiS3` (incluida con Arduino R4)
-   - `ArduinoJson`
-4. Compilar y subir al Arduino
-
-## 📊 Funcionalidades Educativas
-
-### 1. **Dashboard de Monitoreo Principal**
-- 📈 Gráficos en tiempo real con Plotly.js
-- 🚨 Sistema de alertas basado en umbrales
-- 📱 Diseño responsive
-- 🔄 Actualizaciones automáticas cada 3 segundos
-
-### 2. **Panel de Administración**
-- 🎛️ Control de modo (datos reales vs simulados)
-- 📊 Estadísticas del sistema
-- 🔍 Monitoreo de conexiones activas
-- ⚙️ Configuración en tiempo real
-
-### 3. **Monitor de Sistema Distribuido**
-- 📡 Visualización de eventos de red
-- 💻 Métricas de CPU y memoria
-- 📋 Log de eventos en tiempo real
-- 🌐 Topología de red interactiva
-- 📈 Gráficos de performance
-
-### 4. **Simulación de Datos**
-- 🎭 Modo mock para testing sin hardware
-- 🔄 Generación automática de datos realistas
-- 📊 Patrones de datos configurables
-- 🧪 Perfecto para demos y desarrollo
-
-## 🔍 Conceptos Técnicos Demostrados
-
-### 1. **WebSockets vs HTTP**
-
-**HTTP (Arduino → Servidor):**
-```python
-# Endpoint optimizado para IoT
-@app.post("/water-monitor/publish")
-async def arduino_http_endpoint(request: Request):
-    # Procesamiento mínimo para conservar batería del Arduino
-    # Respuesta rápida y eficiente
-```
-
-**WebSocket (Servidor ↔ Cliente Web):**
-```python
-# Comunicación bidireccional en tiempo real
-@app.websocket("/water-monitor")
-async def monitor_websocket_endpoint(websocket: WebSocket):
-    # Envío automático de datos cuando hay actualizaciones
-    # Manejo de múltiples clientes simultáneos
-```
-
-### 2. **Patrón Publisher/Subscriber**
-```python
-# Estado global compartido
-class WaterMonitorState:
-    async def update_reading(self, reading: SensorReading):
-        # Actualizar datos
-        self.latest_reading = reading
-        # Notificar a TODOS los suscriptores
-        await self._broadcast_to_clients()
-```
-
-### 3. **Manejo de Estado Distribuido**
-```python
-# Sincronización entre múltiples clientes
-water_state = WaterMonitorState()  # Singleton
-# Todos los clientes ven los mismos datos
-# Estado consistente en todo el sistema
-```
-
-### 4. **Monitoreo de Sistema en Tiempo Real**
-```python
-# Métricas de sistema automáticas
-async def collect_system_metrics(self):
-    cpu_percent = psutil.cpu_percent()
-    memory = psutil.virtual_memory()
-    # Broadcast a todos los monitores
-```
-
-## 🧪 Casos de Uso Educativos
-
-### Para Profesores:
-
-1. **Demostración de WebSockets:**
-   - Abrir múltiples ventanas del dashboard
-   - Mostrar cómo los cambios se propagan instantáneamente
-   - Explicar diferencias con polling HTTP tradicional
-
-2. **Sistemas Distribuidos:**
-   - Usar el monitor de sistema para mostrar comunicación
-   - Demostrar tolerancia a fallos desconectando clientes
-   - Mostrar escalabilidad con múltiples conexiones
-
-3. **IoT Architecture:**
-   - Arduino como edge device con limitaciones
-   - Servidor como gateway/broker
-   - Clientes web como interfaces de usuario
-
-4. **Performance Monitoring:**
-   - Observar métricas de CPU/memoria en tiempo real
-   - Analizar patrones de tráfico de red
-   - Correlacionar eventos con performance
-
-### Para Estudiantes:
-
-1. **Desarrollo Incremental:**
-   - Empezar con datos mock
-   - Agregar Arduino gradualmente
-   - Expandir con nuevos sensores
-
-2. **Debugging Avanzado:**
-   - Usar logs estructurados
-   - Monitorear eventos en tiempo real
-   - Analizar patrones de comunicación
-
-3. **Optimización:**
-   - Medir latencia de comunicación
-   - Optimizar frecuencia de actualizaciones
-   - Balancear precisión vs performance
-
-## 🛠️ Desarrollo y Extensión
-
-### Agregar Nuevos Sensores
-
-1. **En el Arduino:**
+3. **Ajustar IP del servidor**
 ```cpp
-// Agregar nueva lectura
-float temperatura = leer_sensor_temperatura(A3);
-
-// Incluir en JSON
-doc["TEMP"] = temperatura;
+const char *server_host = "TU_SERVIDOR_IP";  // Cambiar por tu IP
+const int server_port = 8000;
 ```
 
-2. **En el Servidor:**
-```python
-# Extender modelo de datos
-@dataclass
-class SensorReading:
-    turbidity: float
-    ph: float
-    conductivity: float
-    temperature: float  # Nuevo campo
+---
+
+## 📊 Interfaces del Sistema
+
+### **1. Dashboard Principal** (`/water-monitor`)
+- Visualización en tiempo real de turbidez, pH y conductividad
+- Gráficos interactivos con Plotly.js
+- Alertas automáticas basadas en umbrales
+- Estado de conexión del sistema
+
+### **2. Panel de Administración** (`/admin-dashboard`)
+- Control del modo de operación (datos reales vs simulados)
+- Estadísticas del sistema y conexiones activas
+- Log de eventos en tiempo real
+- Configuración del sistema
+
+### **3. Monitor de Sistema Distribuido** (`/system-monitor`)
+- Visualización de topología de red
+- Métricas de performance (CPU, memoria, red)
+- Eventos de comunicación en tiempo real
+- Debug avanzado para desarrollo
+
+### **4. Documentación API** (`/docs`)
+- Swagger UI automático
+- Testing interactivo de endpoints
+- Esquemas de datos y ejemplos
+
+---
+
+## 📈 Características Avanzadas
+
+### **🔍 Observabilidad Completa**
+- **Logging Estructurado**: JSON logs con contexto completo
+- **Métricas en Tiempo Real**: CPU, memoria, conexiones, throughput
+- **Health Checks**: Endpoints para monitoreo automático
+- **Error Tracking**: Captura y análisis de excepciones
+
+### **⚡ Performance Optimizado**
+- **Async/Await**: Manejo concurrente de múltiples conexiones
+- **Connection Pooling**: Gestión eficiente de recursos
+- **Data Validation**: Pydantic para validación automática
+- **Caching**: Headers HTTP para optimización
+
+### **🔒 Seguridad Integrada**
+- **CORS Configuration**: Control de origen de peticiones
+- **Input Validation**: Sanitización de datos de entrada
+- **Error Handling**: No exposición de información sensible
+- **Container Security**: Usuario no-root, imagen minimal
+
+### **📱 Responsive Design**
+- **Mobile-First**: Diseño adaptable a dispositivos móviles
+- **Real-time Updates**: Actualizaciones automáticas sin refresh
+- **Progressive Enhancement**: Funcionalidad básica sin JavaScript
+
+---
+
+## 🤝 Contribución y Desarrollo
+
+### **Flujo de Desarrollo**
+
+1. **Fork** del repositorio
+2. **Feature branch**: `git checkout -b feature/nueva-funcionalidad`
+3. **Desarrollo** con tests
+4. **Pull Request** con descripción detallada
+
+### **Estándares de Código**
+
+- **PEP 8**: Estilo de código Python
+- **Type Hints**: Documentación de tipos
+- **Docstrings**: Documentación de funciones
+- **Error Handling**: Manejo robusto de excepciones
+
+### **Testing**
+
+```bash
+# Unit tests
+python -m pytest tests/
+
+# Integration tests
+python -m pytest tests/integration/
+
+# Coverage report
+python -m pytest --cov=./ --cov-report=html
 ```
 
-3. **En el Frontend:**
-```javascript
-// Agregar nuevo gráfico
-const tempTrace = {
-    x: chartData.time,
-    y: chartData.temperature,
-    name: 'Temperatura',
-    type: 'scatter'
-};
-```
+---
 
-### Personalización de Umbrales
+## 📚 Recursos Adicionales
 
-```python
-# En water_monitor.py - Personalizar rangos
-THRESHOLDS = {
-    "PH": {"ideal": {"min": 6.5, "max": 7.5}},
-    "T": {"ideal": {"max": 10}},
-    # Agregar nuevos parámetros
-}
-```
-
-## 📚 Referencias y Recursos Adicionales
-
-### Documentación Técnica:
+### **Documentación Técnica**
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [WebSockets RFC 6455](https://tools.ietf.org/html/rfc6455)
-- [Arduino Uno R4 WiFi Guide](https://docs.arduino.cc/hardware/uno-r4-wifi)
+- [WebSocket Protocol](https://tools.ietf.org/html/rfc6455)
+- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/)
 
-### Conceptos Teóricos:
-- Sistemas Distribuidos: Tanenbaum & van Steen
-- Real-time Systems: Liu
-- IoT Architecture Patterns: Microsoft Azure
+### **Tutoriales y Guías**
+- [Arduino IoT Guide](https://docs.arduino.cc/learn/communication/wifi)
+- [Sistema Distribuidos Concepts](https://martinfowler.com/articles/microservices.html)
+- [WebSocket vs HTTP](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
-### Librerías Utilizadas:
-- `fastapi`: Framework web moderno y rápido
-- `uvicorn`: Servidor ASGI de alto rendimiento  
-- `websockets`: Implementación WebSocket para Python
-- `plotly.js`: Visualización interactiva de datos
-- `psutil`: Métricas de sistema multiplataforma
+---
+
+## 🎯 Próximos Pasos y Mejoras
+
+### **Funcionalidades Planeadas**
+- [ ] **Base de Datos**: Almacenamiento histórico con TimescaleDB
+- [ ] **Alertas**: Notificaciones email/SMS via AWS SNS  
+- [ ] **Multi-sensor**: Soporte para múltiples ubicaciones
+- [ ] **Machine Learning**: Predicción de calidad del agua
+- [ ] **Mobile App**: Aplicación nativa con React Native
+
+### **Mejoras de Infrastructure**
+- [ ] **Auto-scaling**: Escalado automático basado en métricas
+- [ ] **Blue/Green Deployment**: Deployments sin downtime
+- [ ] **Monitoring**: Grafana + Prometheus para métricas avanzadas
+- [ ] **Security**: WAF + Shield para protección DDoS
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está desarrollado con fines educativos para el curso de Sistemas Embebidos.
-
-**Uso permitido:**
-- ✅ Fines educativos y académicos
-- ✅ Modificación y extensión
-- ✅ Distribución en contextos educativos
-
-**Atribución:**
-Por favor, menciona este proyecto si lo usas como base para otros trabajos académicos.
+Este proyecto está bajo la licencia MIT. Ver `LICENSE` para más detalles.
 
 ---
 
-*Desarrollado con ❤️ para la educación en Sistemas Embebidos e IoT*
+## 👨‍💻 Autor
+
+**Tu Nombre**
+- GitHub: [@MCMike0399](https://github.com/MCMike0399)
+- LinkedIn: [Miguel Quintero](https://www.linkedin.com/in/miguel-quintero-034a7121a/)
+- Email: maquinterov0399@icloud.com
+
+---
+
+*Sistema de Monitoreo IoT de Calidad de Agua - Demostrando conceptos avanzados de sistemas distribuidos, comunicación en tiempo real y arquitectura moderna de software
