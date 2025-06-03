@@ -174,17 +174,46 @@
          .btn:hover {
             background: #22c55e;
          }
-         /* EXPANDIR TOPOLOGÍA - Quitamos métricas y damos más espacio */
-         .topology-expanded {
+
+         /* NUEVO LAYOUT PARA TOPOLOGÍA - Sin solapamiento */
+         .topology-container {
+            display: grid;
+            grid-template-columns: 1fr 300px;  /* Topología + Panel lateral */
+            gap: 20px;
+            height: 600px;
+         }
+         
+         .topology-visual {
             background: #0f0f23;
-            height: 600px; /* Aumentado de 350px a 600px */
             border-radius: 8px;
             border: 1px solid #333;
             position: relative;
             overflow: hidden;
+            min-height: 600px;
          }
+         
+         .topology-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+         }
+         
+         .info-card {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #333;
+            flex: 1;
+         }
+         
+         .info-card h4 {
+            color: #4ade80;
+            margin-bottom: 10px;
+            font-size: 14px;
+         }
+
          .node {
-            width: 80px; /* Aumentado de 70px */
+            width: 80px;
             height: 80px;
             border-radius: 50%;
             display: flex;
@@ -211,12 +240,13 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
          }
-         /* REPOSICIONADOS para evitar superposición */
+
+         /* Posiciones optimizadas para evitar solapamiento */
          .arduino-node {
             background: #f97316;
             border-color: #ea580c;
-            top: 80px;
-            left: 80px;
+            top: 100px;
+            left: 100px;
          }
          .server-node {
             background: #8b5cf6;
@@ -228,21 +258,22 @@
          .client-node {
             background: #06b6d4;
             border-color: #0891b2;
-            top: 80px;
-            right: 120px;
+            top: 100px;
+            right: 100px;
          }
          .admin-node {
             background: #ef4444;
             border-color: #dc2626;
-            bottom: 80px;
-            left: 120px;
+            bottom: 100px;
+            left: 150px;
          }
          .monitor-node {
             background: #10b981;
             border-color: #059669;
-            bottom: 80px;
-            right: 80px;
+            bottom: 100px;
+            right: 150px;
          }
+
          .connection-line {
             position: absolute;
             height: 3px;
@@ -263,23 +294,13 @@
             50% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
             100% { box-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
          }
-         /* REPOSICIONADO - Info de conexiones en esquina superior derecha */
-         .connection-info {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 12px;
-            z-index: 15;
-            min-width: 200px;
-         }
+
          .connection-counter {
             margin: 5px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 12px;
          }
          .active-counter {
             color: #4ade80;
@@ -288,18 +309,7 @@
          .inactive-counter {
             color: #f87171;
          }
-         /* Información del nodo */
-         .node-info {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 11px;
-            z-index: 15;
-            max-width: 300px;
-         }
+
          .protocol-label {
             position: absolute;
             background: rgba(0, 0, 0, 0.8);
@@ -310,6 +320,7 @@
             z-index: 20;
             pointer-events: none;
          }
+
          @media (max-width: 1200px) {
             .grid {
                grid-template-columns: 1fr;
@@ -319,8 +330,16 @@
                margin-bottom: 15px;
                width: fit-content;
             }
-            .topology-expanded {
-               height: 400px;
+            .topology-container {
+               grid-template-columns: 1fr;
+               height: auto;
+            }
+            .topology-sidebar {
+               flex-direction: row;
+               overflow-x: auto;
+            }
+            .info-card {
+               min-width: 250px;
             }
          }
       </style>
@@ -340,85 +359,95 @@
       </div>
 
       <div class="dashboard">
-         <!-- TOPOLOGÍA EXPANDIDA - Ocupa todo el ancho y más altura -->
+         <!-- TOPOLOGÍA REORGANIZADA - Sin solapamiento -->
          <div class="card grid-full">
             <h3>🌐 Topología del Sistema Distribuido IoT</h3>
             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">
                Visualización en tiempo real de las comunicaciones entre Arduino, servidor FastAPI y clientes web.
                Los nodos activos brillan y las líneas muestran flujo de datos activo.
             </p>
-            <div class="topology-expanded" id="networkTopology">
-               <!-- Información de conexiones - REPOSICIONADO -->
-               <div class="connection-info">
-                  <div style="font-weight: bold; margin-bottom: 10px; color: #4ade80;">📊 Estado de Conexiones</div>
-                  <div class="connection-counter">
-                     <span>🖥️ Monitor Clients:</span>
-                     <span id="monitorClientCount" class="active-counter">0</span>
+            
+            <div class="topology-container">
+               <!-- Área visual de la topología -->
+               <div class="topology-visual" id="networkTopology">
+                  <!-- Nodos del sistema -->
+                  <div class="node arduino-node" id="arduinoNode" 
+                       title="Arduino Uno R4 WiFi - Dispositivo IoT"
+                       onclick="showNodeInfo('arduino')">
+                     Arduino<br />📡 IoT
                   </div>
-                  <div class="connection-counter">
-                     <span>🛠️ Admin Clients:</span>
-                     <span id="adminClientCount" class="active-counter">0</span>
+                  
+                  <div class="node server-node active" id="serverNode" 
+                       title="Servidor FastAPI - Núcleo del Sistema"
+                       onclick="showNodeInfo('server')">
+                     FastAPI<br />🖥️ Server
                   </div>
-                  <div class="connection-counter">
-                     <span>📡 Arduino Status:</span>
-                     <span id="arduinoStatus" class="inactive-counter">Offline</span>
+                  
+                  <div class="node client-node" id="clientNode" 
+                       title="Cliente Web - Dashboard de Monitoreo"
+                       onclick="showNodeInfo('client')">
+                     Web<br />🌊 Monitor
                   </div>
-                  <div class="connection-counter">
-                     <span>📈 Events/sec:</span>
-                     <span id="eventsPerSecond" class="active-counter">0</span>
+                  
+                  <div class="node admin-node" id="adminNode" 
+                       title="Panel de Administración"
+                       onclick="showNodeInfo('admin')">
+                     Admin<br />⚙️ Panel
                   </div>
+                  
+                  <div class="node monitor-node active" id="monitorNodeVis" 
+                       title="Monitor de Sistema - Observabilidad"
+                       onclick="showNodeInfo('monitor')">
+                     System<br />🔍 Monitor
+                  </div>
+
+                  <!-- Líneas de conexión -->
+                  <div class="connection-line" id="arduinoToServer"></div>
+                  <div class="connection-line" id="serverToClient"></div>
+                  <div class="connection-line" id="serverToAdmin"></div>
+                  <div class="connection-line" id="serverToMonitor"></div>
+
+                  <!-- Labels de protocolos -->
+                  <div class="protocol-label" id="httpLabel" style="display: none;">HTTP POST</div>
+                  <div class="protocol-label" id="wsLabel" style="display: none;">WebSocket</div>
                </div>
 
-               <!-- Información educativa del nodo seleccionado -->
-               <div class="node-info" id="nodeInfo">
-                  <div style="font-weight: bold; color: #4ade80; margin-bottom: 5px;">💡 Sistema Distribuido IoT</div>
-                  <div>Haz clic en los nodos para aprender sobre cada componente y sus protocolos de comunicación.</div>
-               </div>
+               <!-- Panel lateral con información -->
+               <div class="topology-sidebar">
+                  <!-- Estado de conexiones -->
+                  <div class="info-card">
+                     <h4>📊 Estado de Conexiones</h4>
+                     <div class="connection-counter">
+                        <span>🖥️ Monitor Clients:</span>
+                        <span id="monitorClientCount" class="active-counter">0</span>
+                     </div>
+                     <div class="connection-counter">
+                        <span>🛠️ Admin Clients:</span>
+                        <span id="adminClientCount" class="active-counter">0</span>
+                     </div>
+                     <div class="connection-counter">
+                        <span>📡 Arduino Status:</span>
+                        <span id="arduinoStatus" class="inactive-counter">Offline</span>
+                     </div>
+                     <div class="connection-counter">
+                        <span>📈 Events/sec:</span>
+                        <span id="eventsPerSecond" class="active-counter">0</span>
+                     </div>
+                  </div>
 
-               <!-- Nodos del sistema - REPOSICIONADOS -->
-               <div class="node arduino-node" id="arduinoNode" 
-                    title="Arduino Uno R4 WiFi - Dispositivo IoT"
-                    onclick="showNodeInfo('arduino')">
-                  Arduino<br />📡 IoT
+                  <!-- Información del nodo seleccionado -->
+                  <div class="info-card">
+                     <h4>💡 Información del Componente</h4>
+                     <div id="nodeInfo" style="font-size: 11px; line-height: 1.4;">
+                        <div style="font-weight: bold; color: #4ade80; margin-bottom: 5px;">Sistema Distribuido IoT</div>
+                        <div>Haz clic en los nodos para aprender sobre cada componente y sus protocolos de comunicación.</div>
+                     </div>
+                  </div>
                </div>
-               
-               <div class="node server-node active" id="serverNode" 
-                    title="Servidor FastAPI - Núcleo del Sistema"
-                    onclick="showNodeInfo('server')">
-                  FastAPI<br />🖥️ Server
-               </div>
-               
-               <div class="node client-node" id="clientNode" 
-                    title="Cliente Web - Dashboard de Monitoreo"
-                    onclick="showNodeInfo('client')">
-                  Web<br />🌊 Monitor
-               </div>
-               
-               <div class="node admin-node" id="adminNode" 
-                    title="Panel de Administración"
-                    onclick="showNodeInfo('admin')">
-                  Admin<br />⚙️ Panel
-               </div>
-               
-               <div class="node monitor-node active" id="monitorNodeVis" 
-                    title="Monitor de Sistema - Observabilidad"
-                    onclick="showNodeInfo('monitor')">
-                  System<br />🔍 Monitor
-               </div>
-
-               <!-- Líneas de conexión -->
-               <div class="connection-line" id="arduinoToServer"></div>
-               <div class="connection-line" id="serverToClient"></div>
-               <div class="connection-line" id="serverToAdmin"></div>
-               <div class="connection-line" id="serverToMonitor"></div>
-
-               <!-- Labels de protocolos -->
-               <div class="protocol-label" id="httpLabel" style="display: none;">HTTP POST</div>
-               <div class="protocol-label" id="wsLabel" style="display: none;">WebSocket</div>
             </div>
          </div>
 
-         <!-- Gráficos de Performance - Simplificados -->
+         <!-- Gráficos de Performance -->
          <div class="grid">
             <div class="card">
                <h3>📈 Performance del Sistema</h3>
@@ -447,7 +476,7 @@
             </div>
          </div>
 
-         <!-- Log de Eventos Mejorado -->
+         <!-- Log de Eventos -->
          <div class="card grid-full">
             <h3>📝 Log Educativo de Eventos del Sistema</h3>
             <p style="font-size: 14px; opacity: 0.8; margin-bottom: 10px;">
@@ -604,7 +633,7 @@
          function handleInitialState(data) {
             if (data.counters) updateCounters(data.counters);
             if (data.recent_events) {
-               data.recent_events.slice(-5).forEach((event) => { // Solo últimos 5 eventos
+               data.recent_events.slice(-5).forEach((event) => {
                   const details = parseEventDetails(event);
                   addEventToLog(event.source.toUpperCase(), details, event.event_type);
                });
@@ -620,7 +649,6 @@
             const details = parseEventDetails(event);
             addEventToLog(event.source.toUpperCase(), details, event.event_type);
             
-            // Actualizar estados de conexión
             updateConnectionStatesFromEvent(event);
             updateTopologyConnections();
          }
@@ -692,25 +720,21 @@
          }
 
          function updateTopologyConnections() {
-            // Actualizar contadores en la interfaz
             document.getElementById("monitorClientCount").textContent = connectionStates.monitorClients;
             document.getElementById("adminClientCount").textContent = connectionStates.adminClients;
             document.getElementById("arduinoStatus").textContent = connectionStates.arduino ? "Online" : "Offline";
             document.getElementById("arduinoStatus").className = connectionStates.arduino ? "active-counter" : "inactive-counter";
             document.getElementById("eventsPerSecond").textContent = connectionStates.eventsPerSecond;
 
-            // Actualizar nodos
             updateNodeState("arduinoNode", connectionStates.arduino);
             updateNodeState("clientNode", connectionStates.monitorClients > 0);
             updateNodeState("adminNode", connectionStates.adminClients > 0);
 
-            // Actualizar líneas de conexión
             updateConnectionLine("arduinoToServer", connectionStates.arduino);
             updateConnectionLine("serverToClient", connectionStates.monitorClients > 0);
             updateConnectionLine("serverToAdmin", connectionStates.adminClients > 0);
             updateConnectionLine("serverToMonitor", true);
 
-            // Calcular posiciones de líneas
             setTimeout(calculateConnectionLines, 100);
          }
 
@@ -914,7 +938,7 @@
 
             setTimeout(() => {
                updateTopologyConnections();
-               showNodeInfo('server'); // Mostrar info del servidor por defecto
+               showNodeInfo('server');
             }, 500);
          };
       </script>

@@ -31,18 +31,61 @@ const THRESHOLDS = {
     }
 };
 
+// FUNCIÓN AUXILIAR: Validar y sanitizar valores numéricos
+function validateAndSanitizeValue(value, defaultValue = 0, min = null, max = null) {
+    // Convertir a número si es string
+    let numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // Verificar si es un número válido
+    if (isNaN(numValue) || !isFinite(numValue)) {
+        console.warn(`⚠️ Valor inválido detectado: ${value}, usando valor por defecto: ${defaultValue}`);
+        return defaultValue;
+    }
+    
+    // Aplicar límites si se especifican
+    if (min !== null && numValue < min) {
+        console.warn(`⚠️ Valor ${numValue} por debajo del mínimo ${min}, ajustando`);
+        return min;
+    }
+    
+    if (max !== null && numValue > max) {
+        console.warn(`⚠️ Valor ${numValue} por encima del máximo ${max}, ajustando`);
+        return max;
+    }
+    
+    return numValue;
+}
+
+// FUNCIÓN AUXILIAR: Validar estructura de datos recibidos
+function validateDataStructure(data) {
+    if (!data || typeof data !== 'object') {
+        console.error('💥 Datos recibidos no son un objeto válido:', data);
+        return false;
+    }
+    
+    const requiredFields = ['T', 'PH', 'C'];
+    const missingFields = requiredFields.filter(field => !(field in data));
+    
+    if (missingFields.length > 0) {
+        console.error(`💥 Campos faltantes en los datos: ${missingFields.join(', ')}`);
+        return false;
+    }
+    
+    return true;
+}
+
 // Inicializar gráficos separados
 function initCharts() {
     // Configuración común para todos los gráficos
     const config = {
         responsive: true,
-        displayModeBar: false, // Oculta la barra de herramientas
-        staticPlot: true,      // Esta es la clave: convierte el gráfico en estático
-        scrollZoom: false,     // Desactiva el zoom con scroll
-        doubleClick: false     // Desactiva la acción de doble clic
+        displayModeBar: false,
+        staticPlot: true,
+        scrollZoom: false,
+        doubleClick: false
     };
 
-    // Gráfico de Turbidez (mantén el resto igual, solo cambia la configuración)
+    // Gráfico de Turbidez
     const turbidityTrace = {
         x: chartData.time,
         y: chartData.turbidity,
@@ -57,20 +100,20 @@ function initCharts() {
         xaxis: {
             title: { text: 'Tiempo' },
             showgrid: true,
-            fixedrange: true // Evita que el eje X se pueda ajustar
+            fixedrange: true
         },
         yaxis: {
             title: 'Turbidez (NTU)',
             titlefont: {color: '#3498db'},
             tickfont: {color: '#3498db'},
             range: [0, 1000],
-            fixedrange: true // Evita que el eje Y se pueda ajustar
+            fixedrange: true
         }
     };
 
     Plotly.newPlot('turbidityChart', [turbidityTrace], turbidityLayout, config);
 
-    // Haz los mismos cambios para los otros dos gráficos (pH y Conductividad)
+    // Gráfico de pH
     const phTrace = {
         x: chartData.time,
         y: chartData.ph,
@@ -85,19 +128,20 @@ function initCharts() {
         xaxis: {
             title: { text: 'Tiempo' },
             showgrid: true,
-            fixedrange: true // Evita que el eje X se pueda ajustar
+            fixedrange: true
         },
         yaxis: {
             title: 'pH',
             titlefont: {color: '#e74c3c'},
             tickfont: {color: '#e74c3c'},
             range: [0, 14],
-            fixedrange: true // Evita que el eje Y se pueda ajustar
+            fixedrange: true
         }
     };
 
     Plotly.newPlot('phChart', [phTrace], phLayout, config);
 
+    // Gráfico de Conductividad
     const conductivityTrace = {
         x: chartData.time,
         y: chartData.conductivity,
@@ -112,31 +156,35 @@ function initCharts() {
         xaxis: {
             title: { text: 'Tiempo', standoff: 20 },
             showgrid: true,
-            fixedrange: true // Evita que el eje X se pueda ajustar
+            fixedrange: true
         },
         yaxis: {
             title: 'Conductividad (μS/cm)',
             titlefont: {color: '#2ecc71'},
             tickfont: {color: '#2ecc71'},
             range: [0, 1500],
-            fixedrange: true // Evita que el eje Y se pueda ajustar
+            fixedrange: true
         }
     };
 
     Plotly.newPlot('conductivityChart', [conductivityTrace], conductivityLayout, config);
 }
 
-
-// Función para actualizar gráficos con nuevos datos
+// Función para actualizar gráficos con nuevos datos (CON VALIDACIÓN)
 function updateCharts(data) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
     
+    // VALIDAR Y SANITIZAR datos antes de agregar a los gráficos
+    const turbidity = validateAndSanitizeValue(data.T, 25.0, 0, 1000);
+    const ph = validateAndSanitizeValue(data.PH, 7.0, 0, 14);
+    const conductivity = validateAndSanitizeValue(data.C, 300.0, 0, 1500);
+    
     // Añadir nuevo punto de datos
     chartData.time.push(timeStr);
-    chartData.turbidity.push(data.T);
-    chartData.ph.push(data.PH);
-    chartData.conductivity.push(data.C);
+    chartData.turbidity.push(turbidity);
+    chartData.ph.push(ph);
+    chartData.conductivity.push(conductivity);
     
     // Limitar el número de puntos
     if (chartData.time.length > MAX_DATA_POINTS) {
@@ -147,34 +195,42 @@ function updateCharts(data) {
     }
     
     // Actualizar cada gráfico individualmente
-    Plotly.update('turbidityChart', {
-        x: [chartData.time],
-        y: [chartData.turbidity]
-    }, {}, [0]);
-    
-    Plotly.update('phChart', {
-        x: [chartData.time],
-        y: [chartData.ph]
-    }, {}, [0]);
-    
-    Plotly.update('conductivityChart', {
-        x: [chartData.time],
-        y: [chartData.conductivity]
-    }, {}, [0]);
+    try {
+        Plotly.update('turbidityChart', {
+            x: [chartData.time],
+            y: [chartData.turbidity]
+        }, {}, [0]);
+        
+        Plotly.update('phChart', {
+            x: [chartData.time],
+            y: [chartData.ph]
+        }, {}, [0]);
+        
+        Plotly.update('conductivityChart', {
+            x: [chartData.time],
+            y: [chartData.conductivity]
+        }, {}, [0]);
+    } catch (error) {
+        console.error('💥 Error actualizando gráficos:', error);
+    }
 }
 
-// Formatear valores para mostrar (sin conversión)
+// Formatear valores para mostrar (CON VALIDACIÓN ROBUSTA)
 function formatValues(data) {
+    const turbidity = validateAndSanitizeValue(data.T, 25.0, 0, 1000);
+    const ph = validateAndSanitizeValue(data.PH, 7.0, 0, 14);
+    const conductivity = validateAndSanitizeValue(data.C, 300.0, 0, 1500);
+    
     return {
-        T: parseFloat(data.T).toFixed(2),
-        PH: parseFloat(data.PH).toFixed(2),
-        C: parseFloat(data.C).toFixed(0)
+        T: turbidity.toFixed(2),
+        PH: ph.toFixed(2),
+        C: Math.round(conductivity).toString()
     };
 }
 
 // Evaluar el estado del pH y devolver mensaje y clase CSS
 function evaluatePh(ph) {
-    const value = parseFloat(ph);
+    const value = validateAndSanitizeValue(ph, 7.0, 0, 14);
     
     if (value >= THRESHOLDS.PH.ideal.min && value <= THRESHOLDS.PH.ideal.max) {
         return {
@@ -221,7 +277,7 @@ function evaluatePh(ph) {
 
 // Evaluar el estado de la turbidez
 function evaluateTurbidity(turbidity) {
-    const value = parseFloat(turbidity);
+    const value = validateAndSanitizeValue(turbidity, 25.0, 0, 1000);
     
     if (value <= THRESHOLDS.T.ideal.max) {
         return {
@@ -258,7 +314,7 @@ function evaluateTurbidity(turbidity) {
 
 // Evaluar el estado de la conductividad
 function evaluateConductivity(conductivity) {
-    const value = parseFloat(conductivity);
+    const value = validateAndSanitizeValue(conductivity, 300.0, 0, 1500);
     
     if (value <= THRESHOLDS.C.ideal.max) {
         return {
@@ -298,10 +354,10 @@ function checkThresholds(data) {
     const alertPanel = document.getElementById('alertPanel');
     const alertMessage = document.getElementById('alertMessage');
     
-    // Convertir strings a números
-    const ph = parseFloat(data.PH);
-    const turbidity = parseFloat(data.T);
-    const conductivity = parseFloat(data.C);
+    // VALIDAR datos antes de usar
+    const ph = validateAndSanitizeValue(data.PH, 7.0, 0, 14);
+    const turbidity = validateAndSanitizeValue(data.T, 25.0, 0, 1000);
+    const conductivity = validateAndSanitizeValue(data.C, 300.0, 0, 1500);
     
     // Actualizar indicadores de estado individuales
     const phEvaluation = evaluatePh(ph);
@@ -310,17 +366,22 @@ function checkThresholds(data) {
     
     // Actualizar clase y mensaje de estado para cada sensor
     const phStatus = document.getElementById('phStatus');
-    phStatus.textContent = phEvaluation.status;
-    phStatus.className = `sensor-status ${phEvaluation.class}`;
+    if (phStatus) {
+        phStatus.textContent = phEvaluation.status;
+        phStatus.className = `sensor-status ${phEvaluation.class}`;
+    }
     
     const turbidityStatus = document.getElementById('turbidityStatus');
-    turbidityStatus.textContent = turbidityEvaluation.status;
-    turbidityStatus.className = `sensor-status ${turbidityEvaluation.class}`;
+    if (turbidityStatus) {
+        turbidityStatus.textContent = turbidityEvaluation.status;
+        turbidityStatus.className = `sensor-status ${turbidityEvaluation.class}`;
+    }
     
     const conductivityStatus = document.getElementById('conductivityStatus');
-    conductivityStatus.textContent = conductivityEvaluation.status;
-    conductivityStatus.className = `sensor-status ${conductivityEvaluation.class}`;
-    
+    if (conductivityStatus) {
+        conductivityStatus.textContent = conductivityEvaluation.status;
+        conductivityStatus.className = `sensor-status ${conductivityEvaluation.class}`;
+    }
     
     // Si todos los valores están en rangos aceptables
     if (ph >= THRESHOLDS.PH.acceptable.min && ph <= THRESHOLDS.PH.acceptable.max &&
@@ -332,84 +393,153 @@ function checkThresholds(data) {
             turbidity <= THRESHOLDS.T.ideal.max ||
             conductivity <= THRESHOLDS.C.ideal.max) {
             
-            alertPanel.style.display = 'block';
-            alertPanel.className = 'alert alert-success';
-            alertMessage.textContent = 'Todos los parámetros se encuentran en rangos aceptables o ideales.';
+            if (alertPanel) {
+                alertPanel.style.display = 'block';
+                alertPanel.className = 'alert alert-success';
+                if (alertMessage) {
+                    alertMessage.textContent = 'Todos los parámetros se encuentran en rangos aceptables o ideales.';
+                }
+            }
             return;
         }
     }
     
     // Si llegamos aquí, no hay alertas principales activas
-    alertPanel.style.display = 'none';
+    if (alertPanel) {
+        alertPanel.style.display = 'none';
+    }
 }
 
-// Actualizar interfaz con nuevos valores
+// Actualizar interfaz con nuevos valores (CON VALIDACIÓN COMPLETA)
 function updateInterface(data) {
-    // Solo formatear los valores para mostrar (no necesita conversión)
-    const formattedData = formatValues(data);
-    
-    // Actualizar indicadores
-    document.getElementById('turbidity').textContent = formattedData.T;
-    document.getElementById('ph').textContent = formattedData.PH;
-    document.getElementById('conductivity').textContent = formattedData.C;
-    
-    // Comprobar valores contra umbrales
-    checkThresholds(formattedData);
-    
-    // Actualizar timestamp
-    const now = new Date();
-    document.getElementById('lastUpdate').textContent = 
-        `Última actualización: ${now.toLocaleTimeString()}`;
-    
-    // Actualizar gráficos
-    updateCharts(data);
+    try {
+        // VALIDAR estructura de datos antes de procesar
+        if (!validateDataStructure(data)) {
+            console.error('💥 Datos recibidos tienen estructura inválida, ignorando actualización');
+            return;
+        }
+        
+        // Solo formatear los valores para mostrar (con validación robusta)
+        const formattedData = formatValues(data);
+        
+        // Actualizar indicadores con verificación de existencia de elementos
+        const turbidityElement = document.getElementById('turbidity');
+        const phElement = document.getElementById('ph');
+        const conductivityElement = document.getElementById('conductivity');
+        
+        if (turbidityElement) turbidityElement.textContent = formattedData.T;
+        if (phElement) phElement.textContent = formattedData.PH;
+        if (conductivityElement) conductivityElement.textContent = formattedData.C;
+        
+        // Comprobar valores contra umbrales
+        checkThresholds(formattedData);
+        
+        // Actualizar timestamp
+        const now = new Date();
+        const lastUpdateElement = document.getElementById('lastUpdate');
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = `Última actualización: ${now.toLocaleTimeString()}`;
+        }
+        
+        // Actualizar gráficos con datos validados
+        updateCharts(data);
+        
+        console.log('✅ Interfaz actualizada exitosamente con datos validados');
+        
+    } catch (error) {
+        console.error('💥 Error actualizando interfaz:', error);
+        console.error('📊 Datos problemáticos:', data);
+    }
 }
 
 // Conectar WebSocket
 function connectWebSocket() {
     const statusElement = document.getElementById('connection');
     
-    statusElement.textContent = 'Conectando...';
+    if (statusElement) {
+        statusElement.textContent = 'Conectando...';
+    }
     
     const ws = new WebSocket('ws://' + window.location.host + '/water-monitor');
     
     ws.onopen = function() {
-        statusElement.textContent = 'Conectado';
-        statusElement.className = 'status connected';
-        console.log('WebSocket conectado');
+        if (statusElement) {
+            statusElement.textContent = 'Conectado';
+            statusElement.className = 'status connected';
+        }
+        console.log('✅ WebSocket conectado exitosamente');
     };
     
     ws.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        console.log('Datos recibidos:', data);
-        updateInterface(data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log('📊 Datos recibidos del servidor:', data);
+            
+            // VALIDACIÓN ADICIONAL: Verificar que tenemos un objeto válido
+            if (data && typeof data === 'object') {
+                updateInterface(data);
+            } else {
+                console.warn('⚠️ Datos recibidos no tienen formato esperado:', data);
+            }
+            
+        } catch (parseError) {
+            console.error('💥 Error parseando datos JSON del WebSocket:', parseError);
+            console.error('📄 Datos crudos recibidos:', event.data);
+        }
     };
     
-    ws.onclose = function() {
-        statusElement.textContent = 'Desconectado - Reconectando...';
-        statusElement.className = 'status disconnected';
+    ws.onclose = function(event) {
+        if (statusElement) {
+            statusElement.textContent = 'Desconectado - Reconectando...';
+            statusElement.className = 'status disconnected';
+        }
+        
+        console.log(`🔌 WebSocket cerrado (código: ${event.code}). Reconectando en 2 segundos...`);
+        
         // Reconectar después de 2 segundos
         setTimeout(connectWebSocket, 2000);
     };
     
     ws.onerror = function(err) {
-        console.error('Error en WebSocket:', err);
+        console.error('💥 Error en WebSocket:', err);
+        
+        if (statusElement) {
+            statusElement.textContent = 'Error de conexión';
+            statusElement.className = 'status disconnected';
+        }
+        
+        // Forzar cierre para activar reconexión
         ws.close();
     };
 }
 
 // Inicializar cuando la página cargue
 window.addEventListener('load', function() {
-    // Inicializar gráficos
-    initCharts();
+    console.log('🚀 Iniciando cliente de monitoreo de agua...');
     
-    // Conectar WebSocket
-    connectWebSocket();
-
-    // Manejar el redimensionamiento de la ventana
-    window.addEventListener('resize', function() {
-        Plotly.Plots.resize('turbidityChart');
-        Plotly.Plots.resize('phChart');
-        Plotly.Plots.resize('conductivityChart');
-    });
+    try {
+        // Inicializar gráficos
+        initCharts();
+        console.log('📊 Gráficos inicializados exitosamente');
+        
+        // Conectar WebSocket
+        connectWebSocket();
+        console.log('🔗 Conexión WebSocket iniciada');
+        
+        // Manejar el redimensionamiento de la ventana
+        window.addEventListener('resize', function() {
+            try {
+                Plotly.Plots.resize('turbidityChart');
+                Plotly.Plots.resize('phChart');
+                Plotly.Plots.resize('conductivityChart');
+            } catch (resizeError) {
+                console.warn('⚠️ Error redimensionando gráficos:', resizeError);
+            }
+        });
+        
+        console.log('✅ Cliente de monitoreo inicializado completamente');
+        
+    } catch (initError) {
+        console.error('💥 Error crítico inicializando cliente:', initError);
+    }
 });
