@@ -144,6 +144,33 @@
             font-size: 12px;
             opacity: 0.8;
          }
+         /* CORREGIDO: Alineación fija para origen de datos y última actualización */
+         .reading-metadata {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+         }
+         .metadata-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex: 1;
+         }
+         .metadata-label {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 5px;
+         }
+         .metadata-value {
+            font-weight: bold;
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+         }
          @media (max-width: 768px) {
             .grid {
                grid-template-columns: 1fr;
@@ -155,6 +182,10 @@
             }
             .reading-display {
                grid-template-columns: 1fr;
+            }
+            .reading-metadata {
+               flex-direction: column;
+               gap: 10px;
             }
          }
       </style>
@@ -234,14 +265,15 @@
                      <div class="reading-label">μS/cm</div>
                   </div>
                </div>
-               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
-                  <div class="metric">
-                     <span>Origen de datos:</span>
-                     <span id="dataSource" class="metric-value">--</span>
+               <!-- CORREGIDO: Nuevo layout para metadatos -->
+               <div class="reading-metadata">
+                  <div class="metadata-item">
+                     <div class="metadata-label">Origen de datos</div>
+                     <div id="dataSource" class="metadata-value">--</div>
                   </div>
-                  <div class="metric">
-                     <span>Última actualización:</span>
-                     <span id="lastUpdate" class="metric-value">--</span>
+                  <div class="metadata-item">
+                     <div class="metadata-label">Última actualización</div>
+                     <div id="lastUpdate" class="metadata-value">--</div>
                   </div>
                </div>
             </div>
@@ -250,7 +282,7 @@
             <div class="card wide-card">
                <h3>📝 Log del Sistema en Tiempo Real</h3>
                <div id="systemLog" class="log">
-                  <div style="color: #4ade80">Sistema iniciando...</div>
+                  <div style="color: #4ade80">🚀 Dashboard de administración iniciando...</div>
                </div>
             </div>
          </div>
@@ -259,6 +291,7 @@
       <script>
          let socket = null;
          let reconnectInterval = null;
+         let logCounter = 0;
 
          function addLogEntry(message, type = "info") {
             const log = document.getElementById("systemLog");
@@ -268,6 +301,8 @@
                warning: "#fbbf24",
                error: "#f87171",
                data: "#60a5fa",
+               success: "#10b981",
+               command: "#8b5cf6"
             };
 
             const entry = document.createElement("div");
@@ -287,12 +322,14 @@
             const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
             const wsUrl = `${protocol}//${window.location.host}/admin-dashboard/ws`;
 
+            addLogEntry("🔄 Intentando conectar al servidor WebSocket...", "info");
             socket = new WebSocket(wsUrl);
 
             socket.onopen = function () {
                document.getElementById("connectionStatus").className = "status-indicator online";
                document.getElementById("connectionText").textContent = "Conectado al sistema";
-               addLogEntry("🟢 Conectado al sistema de administración", "info");
+               addLogEntry("✅ Conexión WebSocket establecida correctamente", "success");
+               addLogEntry("📊 Solicitando estado inicial del sistema...", "info");
 
                if (reconnectInterval) {
                   clearInterval(reconnectInterval);
@@ -302,42 +339,69 @@
 
             socket.onmessage = function (event) {
                const data = JSON.parse(event.data);
+               logCounter++;
 
-               if (data.type === "system_update" || data.type === "system_status") {
+               if (data.type === "system_update") {
                   updateSystemDisplay(data);
-                  addLogEntry(`📊 Actualización del sistema recibida`, "data");
+                  if (logCounter % 5 === 0) { // Solo log cada 5 actualizaciones para evitar spam
+                     if (data.latest_reading) {
+                        addLogEntry(`📈 Nuevos datos: T=${data.latest_reading.T}NTU, pH=${data.latest_reading.PH}, C=${data.latest_reading.C}μS/cm (${data.latest_reading.source})`, "data");
+                     }
+                  }
+               } else if (data.type === "system_status") {
+                  updateSystemDisplay(data);
+                  addLogEntry("🏠 Estado inicial del sistema cargado", "success");
+                  if (data.config && data.config.use_mock_data !== undefined) {
+                     addLogEntry(`🎛️ Sistema funcionando en modo: ${data.config.use_mock_data ? 'SIMULADO' : 'ARDUINO REAL'}`, "info");
+                  }
                } else if (data.type === "command_response") {
-                  addLogEntry(`✅ Comando ejecutado: ${data.message}`, "info");
+                  addLogEntry(`✅ Comando ejecutado exitosamente: ${data.message}`, "success");
                   if (data.command === "set_mock_mode") {
                      updateModeButtons(data.new_value);
+                     addLogEntry(`🔧 Modo de operación cambiado a: ${data.new_value ? 'DATOS SIMULADOS' : 'DATOS REALES DEL ARDUINO'}`, "command");
                   }
                } else if (data.type === "error") {
-                  addLogEntry(`❌ Error: ${data.message}`, "error");
+                  addLogEntry(`❌ Error del sistema: ${data.message}`, "error");
                }
             };
 
-            socket.onclose = function () {
+            socket.onclose = function (event) {
                document.getElementById("connectionStatus").className = "status-indicator offline";
                document.getElementById("connectionText").textContent = "Desconectado - Reconectando...";
-               addLogEntry("🔴 Conexión perdida, intentando reconectar...", "warning");
+               addLogEntry(`🔴 Conexión WebSocket cerrada (código: ${event.code}). Iniciando reconexión automática...`, "warning");
 
                if (!reconnectInterval) {
-                  reconnectInterval = setInterval(connectWebSocket, 3000);
+                  reconnectInterval = setInterval(() => {
+                     addLogEntry("🔄 Reintentando conexión...", "info");
+                     connectWebSocket();
+                  }, 3000);
                }
             };
 
             socket.onerror = function (error) {
-               addLogEntry("💥 Error de conexión WebSocket", "error");
+               addLogEntry("💥 Error crítico en la conexión WebSocket", "error");
             };
          }
 
          function updateSystemDisplay(data) {
             // Actualizar estadísticas
             if (data.stats) {
+               const prevClients = parseInt(document.getElementById("connectedClients").textContent) || 0;
+               const newClients = data.stats.connected_clients;
+               
                document.getElementById("totalReadings").textContent = data.stats.total_readings;
                document.getElementById("arduinoReadings").textContent = data.stats.arduino_readings;
                document.getElementById("mockReadings").textContent = data.stats.mock_readings;
-               document.getElementById("connectedClients").textContent = data.stats.connected_clients;
+               document.getElementById("connectedClients").textContent = newClients;
+
+               // Log cambios en conexiones de clientes
+               if (newClients !== prevClients && prevClients !== 0) {
+                  if (newClients > prevClients) {
+                     addLogEntry(`👥 Nuevo cliente conectado al monitor (total: ${newClients})`, "success");
+                  } else if (newClients < prevClients) {
+                     addLogEntry(`👤 Cliente desconectado del monitor (total: ${newClients})`, "warning");
+                  }
+               }
 
                if (data.stats.last_arduino_connection) {
                   const lastDate = new Date(data.stats.last_arduino_connection);
@@ -350,7 +414,11 @@
                document.getElementById("currentTurbidity").textContent = data.latest_reading.T;
                document.getElementById("currentPH").textContent = data.latest_reading.PH;
                document.getElementById("currentConductivity").textContent = data.latest_reading.C;
-               document.getElementById("dataSource").textContent = data.latest_reading.source;
+               
+               // Mostrar fuente de datos con emoji
+               const sourceEmoji = data.latest_reading.source === 'arduino' ? '📡' : '🎭';
+               const sourceText = data.latest_reading.source === 'arduino' ? 'Arduino Real' : 'Simulado';
+               document.getElementById("dataSource").textContent = `${sourceEmoji} ${sourceText}`;
 
                if (data.latest_reading.timestamp) {
                   const updateTime = new Date(data.latest_reading.timestamp);
@@ -387,16 +455,17 @@
                   value: useMock,
                };
                socket.send(JSON.stringify(command));
-               addLogEntry(`🎛️ Cambiando modo a: ${useMock ? "simulado" : "real"}`, "info");
+               addLogEntry(`🎛️ Enviando comando para cambiar a modo ${useMock ? 'simulado' : 'real'}...`, "command");
             } else {
-               addLogEntry("❌ No conectado al sistema", "error");
+               addLogEntry("❌ No hay conexión al sistema. No se puede cambiar el modo.", "error");
             }
          }
 
          // Conectar al cargar la página
          window.onload = function () {
+            addLogEntry("🚀 Iniciando Dashboard de Administración...", "info");
+            addLogEntry("🔧 Configurando interfaz de usuario...", "info");
             connectWebSocket();
-            addLogEntry("🚀 Dashboard de administración iniciado", "info");
          };
       </script>
    </body>

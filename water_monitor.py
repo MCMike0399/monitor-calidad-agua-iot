@@ -48,15 +48,17 @@ import json
 import asyncio
 import random
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from logging_config import get_logger
+from system_monitor import system_monitor, SystemEvent, EventType, monitor_websocket_events
+
 
 # ============================================================================
 # CONFIGURACIÓN Y CONSTANTES
@@ -107,7 +109,7 @@ class SensorReading:
     def to_dict(self) -> Dict[str, Any]:
         """Convierte la lectura a diccionario para JSON serialization"""
         return {
-            "T": round(self.turbidity, 2),    # Formato compatibile con Arduino
+            "T": round(self.turbidity, 2),    # Formato compatible con Arduino
             "PH": round(self.ph, 2),
             "C": round(self.conductivity, 2),
             "timestamp": self.timestamp.isoformat(),
@@ -168,6 +170,9 @@ class WaterMonitorState:
         # Lista de conexiones WebSocket activas para panel de administración
         self.admin_clients: List[WebSocket] = []
         
+        # MEJORADO: Registro de conexiones con IDs únicos
+        self.connection_registry: Dict[str, Dict] = {}
+        
         # Configuración del sistema
         self.use_mock_data: bool = True
         self.mock_task: Optional[asyncio.Task] = None
@@ -184,6 +189,13 @@ class WaterMonitorState:
         
         logger.info("🏗️ Estado del sistema inicializado")
     
+    def generate_connection_id(self, websocket: WebSocket, client_type: str) -> str:
+        """Genera un ID único para cada conexión"""
+        client_host = getattr(websocket.client, 'host', 'unknown') if websocket.client else 'unknown'
+        client_port = getattr(websocket.client, 'port', 0) if websocket.client else 0
+        timestamp = int(time.time() * 1000)
+        return f"{client_type}_{client_host}_{client_port}_{timestamp}"
+    
     async def update_reading(self, reading: SensorReading):
         """
         Actualiza la última lectura y notifica a todos los clientes
@@ -197,10 +209,14 @@ class WaterMonitorState:
         if reading.source == DataSource.ARDUINO:
             self.stats["arduino_readings"] += 1
             self.stats["last_arduino_connection"] = datetime.now()
-            logger.info(f"📡 Datos del Arduino: T={reading.turbidity}, pH={reading.ph}, C={reading.conductivity}")
+            logger.info(f"📡 Datos del Arduino: T={reading.turbidity}NTU, pH={reading.ph}, C={reading.conductivity}μS/cm")
+            
+            # INTEGRACIÓN: Registrar en sistema de monitoreo
+            data_json = json.dumps(reading.to_dict())
+            await system_monitor.record_arduino_data(len(data_json))
         else:
             self.stats["mock_readings"] += 1
-            logger.debug(f"🎭 Datos simulados: T={reading.turbidity}, pH={reading.ph}, C={reading.conductivity}")
+            logger.debug(f"🎭 Datos simulados: T={reading.turbidity}NTU, pH={reading.ph}, C={reading.conductivity}μS/cm")
         
         # Notificar a todos los clientes conectados
         await self._broadcast_to_clients()
@@ -213,10 +229,25 @@ class WaterMonitorState:
             
         data = self.latest_reading.to_dict()
         disconnected_clients = []
+        data_size = len(json.dumps(data))
         
         for client in self.monitor_clients:
             try:
                 await client.send_json(data)
+                
+                # INTEGRACIÓN: Registrar envío en sistema de monitoreo
+                await system_monitor.record_event(SystemEvent(
+                    event_type=EventType.DATA_SENT,
+                    timestamp=datetime.now(),
+                    source="water_monitor_broadcast",
+                    details={
+                        "bytes": data_size,
+                        "protocol": "WebSocket",
+                        "data_type": "sensor_reading",
+                        "explanation": "Datos enviados via WebSocket para visualización en tiempo real"
+                    }
+                ))
+                
             except Exception as e:
                 logger.warning(f"🔌 Cliente desconectado: {str(e)}")
                 disconnected_clients.append(client)
@@ -263,28 +294,60 @@ class WaterMonitorState:
         for client in disconnected_clients:
             self.admin_clients.remove(client)
     
-    def add_monitor_client(self, websocket: WebSocket):
-        """Registra un nuevo cliente de monitoreo"""
+    def add_monitor_client(self, websocket: WebSocket) -> str:
+        """Registra un nuevo cliente de monitoreo y retorna ID único"""
+        connection_id = self.generate_connection_id(websocket, "monitor")
         self.monitor_clients.append(websocket)
+        self.connection_registry[connection_id] = {
+            "websocket": websocket,
+            "type": "monitor",
+            "connected_at": datetime.now()
+        }
         self.stats["connected_clients"] = len(self.monitor_clients)
         logger.info(f"👥 Cliente de monitoreo conectado. Total: {len(self.monitor_clients)}")
+        return connection_id
     
     def remove_monitor_client(self, websocket: WebSocket):
         """Remueve un cliente de monitoreo"""
         if websocket in self.monitor_clients:
             self.monitor_clients.remove(websocket)
+            # Remover del registro también
+            connection_id = None
+            for conn_id, info in self.connection_registry.items():
+                if info["websocket"] == websocket:
+                    connection_id = conn_id
+                    break
+            if connection_id:
+                del self.connection_registry[connection_id]
+                
             self.stats["connected_clients"] = len(self.monitor_clients)
             logger.info(f"👥 Cliente de monitoreo desconectado. Total: {len(self.monitor_clients)}")
     
-    def add_admin_client(self, websocket: WebSocket):
+    def add_admin_client(self, websocket: WebSocket) -> str:
         """Registra un nuevo cliente administrador"""
+        connection_id = self.generate_connection_id(websocket, "admin")
         self.admin_clients.append(websocket)
+        self.connection_registry[connection_id] = {
+            "websocket": websocket,
+            "type": "admin",
+            "connected_at": datetime.now()
+        }
         logger.info(f"🛠️ Cliente admin conectado. Total: {len(self.admin_clients)}")
+        return connection_id
     
     def remove_admin_client(self, websocket: WebSocket):
         """Remueve un cliente administrador"""
         if websocket in self.admin_clients:
             self.admin_clients.remove(websocket)
+            # Remover del registro también
+            connection_id = None
+            for conn_id, info in self.connection_registry.items():
+                if info["websocket"] == websocket:
+                    connection_id = conn_id
+                    break
+            if connection_id:
+                del self.connection_registry[connection_id]
+                
             logger.info(f"🛠️ Cliente admin desconectado. Total: {len(self.admin_clients)}")
 
 # Instancia global del estado del sistema (Singleton)
@@ -309,7 +372,7 @@ async def generate_mock_data():
     Los datos generados siguen patrones realistas basados en
     parámetros típicos de calidad de agua.
     """
-    logger.info("🎭 Iniciando generación de datos simulados")
+    logger.info("🎭 Iniciando generación de datos simulados cada {:.1f} segundos".format(MOCK_DATA_CONFIG["interval_seconds"]))
     
     while True:
         try:
@@ -350,11 +413,11 @@ async def arduino_http_endpoint(request: Request) -> Response:
     - Respuestas rápidas para conservar batería
     - Manejo eficiente de memoria
     - Tolerancia a fallos de red
-    - Logging mínimo para performance
+    - Logging educativo para entender el proceso
     
     ¿Por qué HTTP y no WebSocket para Arduino?
     - Menor consumo de memoria RAM
-    - Implementación más simple en microcontroladores
+    - Implementación más simple
     - Mejor manejo de reconexión automática
     - Compatible con bibliotecas HTTP estándar
     
@@ -388,6 +451,7 @@ async def arduino_http_endpoint(request: Request) -> Response:
         # Actualizar estado solo si no estamos en modo mock
         if not water_state.use_mock_data:
             await water_state.update_reading(reading)
+            logger.info(f"✅ Datos del Arduino procesados y distribuidos a {len(water_state.monitor_clients)} clientes")
             return Response(status_code=200)  # OK - Datos procesados
         else:
             logger.debug("🎭 Datos del Arduino ignorados (modo mock activo)")
@@ -404,6 +468,7 @@ async def arduino_http_endpoint(request: Request) -> Response:
 # WEBSOCKET ENDPOINTS
 # ============================================================================
 
+@monitor_websocket_events
 async def monitor_websocket_endpoint(websocket: WebSocket):
     """
     WebSocket para Clientes de Monitoreo (Dashboard Principal)
@@ -427,13 +492,27 @@ async def monitor_websocket_endpoint(websocket: WebSocket):
         websocket: Conexión WebSocket con el cliente
     """
     await websocket.accept()
-    water_state.add_monitor_client(websocket)
+    connection_id = water_state.add_monitor_client(websocket)
+    connection_start_time = time.time()
     
     try:
         # Enviar datos actuales inmediatamente al conectarse
         initial_data = water_state.latest_reading.to_dict()
         await websocket.send_json(initial_data)
-        logger.info("📊 Cliente de monitoreo conectado y datos iniciales enviados")
+        logger.info(f"📊 Cliente de monitoreo conectado y datos iniciales enviados (conexión: {connection_id[:8]})")
+        
+        # INTEGRACIÓN: Registrar conexión educativa
+        await system_monitor.record_event(SystemEvent(
+            event_type=EventType.CONNECTION,
+            timestamp=datetime.now(),
+            source="water_monitor_websocket",
+            details={
+                "client_type": "water_dashboard",
+                "protocol": "WebSocket",
+                "explanation": "Dashboard usa WebSocket para recibir datos en tiempo real sin polling",
+                "connection_id": connection_id
+            }
+        ))
         
         # Mantener conexión activa y procesar mensajes del cliente
         while True:
@@ -457,28 +536,61 @@ async def monitor_websocket_endpoint(websocket: WebSocket):
                         "status": "received"
                     })
                     
+                    # INTEGRACIÓN: Registrar interacción
+                    await system_monitor.record_event(SystemEvent(
+                        event_type=EventType.DATA_RECEIVED,
+                        timestamp=datetime.now(),
+                        source="water_monitor_client",
+                        details={
+                            "message_type": client_data.get("type", "unknown"),
+                            "bytes": len(message),
+                            "protocol": "WebSocket",
+                            "explanation": "Cliente envía comando interactivo via WebSocket"
+                        }
+                    ))
+                    
                 except json.JSONDecodeError:
                     logger.warning(f"🚨 JSON inválido del cliente: {message}")
                     
             except asyncio.TimeoutError:
                 # Verificar que la conexión sigue activa enviando un mensaje de heartbeat
                 try:
-                    await websocket.send_json({
+                    heartbeat_data = {
                         "type": "heartbeat",
-                        "timestamp": datetime.now().isoformat()
-                    })
+                        "timestamp": datetime.now().isoformat(),
+                        "server_status": "active",
+                        "connected_clients": len(water_state.monitor_clients),
+                        "data_source": water_state.latest_reading.source.value
+                    }
+                    await websocket.send_json(heartbeat_data)
                     logger.debug("🏓 Heartbeat enviado al cliente de monitoreo")
                 except:
                     logger.info("💔 Conexión de monitoreo perdida (heartbeat falló)")
                     break
                     
     except WebSocketDisconnect:
-        logger.info("🔌 Cliente de monitoreo desconectado normalmente")
+        logger.info(f"🔌 Cliente de monitoreo desconectado normalmente (conexión: {connection_id[:8]})")
     except Exception as e:
         logger.error(f"💥 Error en WebSocket de monitoreo: {str(e)}")
     finally:
         water_state.remove_monitor_client(websocket)
+        
+        # INTEGRACIÓN: Registrar desconexión con duración
+        duration = (time.time() - connection_start_time) * 1000
+        await system_monitor.record_event(SystemEvent(
+            event_type=EventType.DISCONNECTION,
+            timestamp=datetime.now(),
+            source="water_monitor_websocket",
+            details={
+                "client_type": "water_dashboard",
+                "reason": "websocket_closed",
+                "session_duration_ms": duration,
+                "connection_id": connection_id
+            },
+            duration_ms=duration
+        ))
 
+@monitor_websocket_events
 async def admin_websocket_endpoint(websocket: WebSocket):
     """
     WebSocket para Panel de Administración del Sistema
@@ -499,7 +611,8 @@ async def admin_websocket_endpoint(websocket: WebSocket):
         websocket: Conexión WebSocket con el panel admin
     """
     await websocket.accept()
-    water_state.add_admin_client(websocket)
+    connection_id = water_state.add_admin_client(websocket)
+    connection_start_time = time.time()
     
     try:
         # Enviar estado inicial del sistema
@@ -520,7 +633,20 @@ async def admin_websocket_endpoint(websocket: WebSocket):
             }
         }
         await websocket.send_json(initial_status)
-        logger.info("🛠️ Cliente admin conectado y estado inicial enviado")
+        logger.info(f"🛠️ Cliente admin conectado y estado inicial enviado (conexión: {connection_id[:8]})")
+        
+        # INTEGRACIÓN: Registrar conexión admin
+        await system_monitor.record_event(SystemEvent(
+            event_type=EventType.CONNECTION,
+            timestamp=datetime.now(),
+            source="admin_websocket",
+            details={
+                "client_type": "admin_panel",
+                "protocol": "WebSocket",
+                "explanation": "Panel admin usa WebSocket para control bidireccional del sistema",
+                "connection_id": connection_id
+            }
+        ))
         
         # Procesar comandos del panel admin
         while True:
@@ -535,17 +661,31 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                 if command == "set_mock_mode":
                     # Cambiar modo mock/real
                     new_mode = command_data.get("value", True)
+                    old_mode = water_state.use_mock_data
                     water_state.use_mock_data = new_mode
                     
                     response = {
                         "type": "command_response",
                         "command": "set_mock_mode",
                         "success": True,
-                        "message": f"Modo cambiado a {'mock' if new_mode else 'real'}",
+                        "message": f"Modo cambiado de {'simulado' if old_mode else 'real'} a {'simulado' if new_mode else 'real'}",
                         "new_value": new_mode
                     }
                     await websocket.send_json(response)
-                    logger.info(f"🔄 Modo de datos cambiado a: {'mock' if new_mode else 'real'}")
+                    logger.info(f"🔄 Modo de datos cambiado a: {'simulado' if new_mode else 'real'}")
+                    
+                    # INTEGRACIÓN: Registrar cambio de modo
+                    await system_monitor.record_event(SystemEvent(
+                        event_type=EventType.DATA_RECEIVED,
+                        timestamp=datetime.now(),
+                        source="admin_command",
+                        details={
+                            "command": "set_mock_mode",
+                            "old_mode": "mock" if old_mode else "arduino",
+                            "new_mode": "mock" if new_mode else "arduino",
+                            "explanation": f"Sistema cambiado a modo {'simulado' if new_mode else 'real'} desde panel admin"
+                        }
+                    ))
                 
                 elif command == "get_stats":
                     # Enviar estadísticas completas
@@ -580,11 +720,26 @@ async def admin_websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json(error_response)
                 
     except WebSocketDisconnect:
-        logger.info("🔌 Cliente admin desconectado")
+        logger.info(f"🔌 Cliente admin desconectado (conexión: {connection_id[:8]})")
     except Exception as e:
         logger.error(f"💥 Error en WebSocket admin: {str(e)}")
     finally:
         water_state.remove_admin_client(websocket)
+        
+        # INTEGRACIÓN: Registrar desconexión admin
+        duration = (time.time() - connection_start_time) * 1000
+        await system_monitor.record_event(SystemEvent(
+            event_type=EventType.DISCONNECTION,
+            timestamp=datetime.now(),
+            source="admin_websocket",
+            details={
+                "client_type": "admin_panel",
+                "reason": "websocket_closed",
+                "session_duration_ms": duration,
+                "connection_id": connection_id
+            },
+            duration_ms=duration
+        ))
 
 # ============================================================================
 # INTERFAZ WEB DE ADMINISTRACIÓN
@@ -631,7 +786,7 @@ def register_routes(app: FastAPI):
     Args:
         app: Instancia de FastAPI para registrar las rutas
     """
-    logger.info("🔗 Registrando rutas del sistema de monitoreo...")
+    logger.info("🔗 Registrando rutas del sistema de monitoreo educativo...")
     
     # ========================================================================
     # ARCHIVOS ESTÁTICOS
@@ -655,7 +810,7 @@ def register_routes(app: FastAPI):
         """Página principal de monitoreo de agua"""
         html_path = os.path.join(static_dir, "ws_client.html")
         if os.path.exists(html_path):
-            logger.info("📊 Sirviendo página de monitoreo")
+            logger.info("📊 Sirviendo página de monitoreo de agua")
             return FileResponse(html_path)
         else:
             logger.warning("⚠️ Archivo de monitoreo no encontrado")
@@ -677,7 +832,7 @@ def register_routes(app: FastAPI):
     
     @app.post("/water-monitor/publish")
     async def arduino_http_route(request: Request):
-        """Endpoint HTTP POST optimizado para Arduino"""
+        """Endpoint HTTP POST optimizado para Arduino IoT"""
         return await arduino_http_endpoint(request)
     
     # ========================================================================
@@ -686,12 +841,12 @@ def register_routes(app: FastAPI):
     
     @app.websocket("/water-monitor")
     async def monitor_websocket_route(websocket: WebSocket):
-        """WebSocket para clientes de monitoreo"""
+        """WebSocket para clientes de monitoreo del dashboard de agua"""
         await monitor_websocket_endpoint(websocket)
     
     @app.websocket("/admin-dashboard/ws")
     async def admin_websocket_route(websocket: WebSocket):
-        """WebSocket para panel de administración"""
+        """WebSocket para panel de administración del sistema"""
         await admin_websocket_endpoint(websocket)
     
     # ========================================================================
@@ -701,11 +856,23 @@ def register_routes(app: FastAPI):
     @app.on_event("startup")
     async def startup_water_monitor():
         """Inicializar sistema de monitoreo al arrancar"""
-        logger.info("🚀 Iniciando sistema de monitoreo de agua...")
+        logger.info("🚀 Iniciando sistema de monitoreo de agua educativo...")
         
         # Iniciar tarea de generación de datos mock
         water_state.mock_task = asyncio.create_task(generate_mock_data())
-        logger.info("🎭 Tarea de datos simulados iniciada")
+        logger.info("🎭 Tarea de datos simulados iniciada para demos y desarrollo")
+        
+        # INTEGRACIÓN: Registrar inicio en sistema de monitoreo
+        await system_monitor.record_event(SystemEvent(
+            event_type=EventType.CONNECTION,
+            timestamp=datetime.now(),
+            source="water_monitor_startup",
+            details={
+                "subsystem": "water_monitoring",
+                "mock_data_enabled": water_state.use_mock_data,
+                "explanation": "Sistema de monitoreo de agua iniciado correctamente"
+            }
+        ))
     
     @app.on_event("shutdown")
     async def shutdown_water_monitor():
